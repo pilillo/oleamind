@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgis/postgis:15-3.3
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: oleamind
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+      - worker
+    environment:
+      DB_HOST: db
+      DB_USER: user
+      DB_PASSWORD: password
+      DB_NAME: oleamind
+      DB_PORT: 5432
+      WORKER_URL: http://worker:5000
+      SECRET: oleamind-secret-key-change-in-production
+      PURGE_NDVI_CACHE_ON_STARTUP: "true"  # Set to "true" to clear cache on startup
+
+  worker:
+    build: ./satellite-worker
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      NDVI_UPSCALE_FACTOR: 2  # Options: 1 (no upscale), 2, 3, 5, 10 (max quality)
+      SCENE_SELECTION_MODE: most_recent  # Options: least_cloud (default), most_recent, balanced
+      SCENE_SEARCH_DAYS: 30  # Number of days to search back for satellite imagery
+
+  frontend:
+    build: ./frontend
+    restart: always
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8080}
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+

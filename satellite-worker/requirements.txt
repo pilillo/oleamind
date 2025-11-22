@@ -1,0 +1,9 @@
+flask
+rasterio
+numpy
+boto3
+pystac-client
+shapely
+Pillow
+pyproj
+
