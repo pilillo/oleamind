@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"time"
 
 	"github.com/oleamind/backend/initializers"
@@ -30,9 +31,9 @@ const (
 	IrrigationThresholdCritical = 0.40 // More frequent for critical stages
 
 	// Deficit irrigation strategies
-	DeficitNone      = "none"       // Full irrigation (100% ETc)
-	DeficitRegulated = "regulated"  // Controlled deficit (60-80% ETc) in non-critical stages
-	DeficitSustained = "sustained"  // Consistent deficit (50-70% ETc) throughout season
+	DeficitNone      = "none"      // Full irrigation (100% ETc)
+	DeficitRegulated = "regulated" // Controlled deficit (60-80% ETc) in non-critical stages
+	DeficitSustained = "sustained" // Consistent deficit (50-70% ETc) throughout season
 )
 
 type IrrigationService struct {
@@ -50,7 +51,7 @@ func (s *IrrigationService) CalculateRecommendation(parcelID uint) (*models.Irri
 	err := s.DB.Where("parcel_id = ?", parcelID).
 		Order("fetched_at DESC").
 		First(&weather).Error
-	
+
 	if err != nil {
 		// Return a default recommendation indicating weather data is needed
 		// This allows the frontend to display a helpful message
@@ -218,10 +219,14 @@ func (s *IrrigationService) CalculateRecommendation(parcelID uint) (*models.Irri
 
 	// Save recommendation
 	if err := s.DB.Create(recommendation).Error; err != nil {
-		log.Printf("⚠️ Failed to save irrigation recommendation: %v", err)
+		slog.Warn("Failed to save irrigation recommendation", "error", err)
 	} else {
-		log.Printf("✅ Irrigation recommendation calculated for parcel %d: Irrigate=%v, Amount=%.1fmm, Urgency=%s",
-			parcelID, recommendation.ShouldIrrigate, recommendation.RecommendedAmount, recommendation.UrgencyLevel)
+		slog.Info("Irrigation recommendation calculated",
+			"parcel_id", parcelID,
+			"irrigate", recommendation.ShouldIrrigate,
+			"amount_mm", recommendation.RecommendedAmount,
+			"urgency", recommendation.UrgencyLevel,
+		)
 	}
 
 	return recommendation, nil
@@ -294,13 +299,13 @@ func (s *IrrigationService) getOrCreateSoilProfile(parcelID uint) (*models.SoilP
 	profile = models.SoilProfile{
 		ParcelID:               parcelID,
 		SoilType:               "clay-loam",
-		FieldCapacity:          25.0, // %
-		WiltingPoint:           12.0, // %
+		FieldCapacity:          25.0,  // %
+		WiltingPoint:           12.0,  // %
 		AvailableWaterCapacity: 150.0, // mm (for 1.2m root depth)
-		RootDepth:              120.0,  // cm (olive trees have deep roots)
-		InfiltrationRate:       10.0,   // mm/hour
-		Slope:                  5.0,    // % (moderate slope)
-		OrganicMatter:          2.5,    // %
+		RootDepth:              120.0, // cm (olive trees have deep roots)
+		InfiltrationRate:       10.0,  // mm/hour
+		Slope:                  5.0,   // % (moderate slope)
+		OrganicMatter:          2.5,   // %
 		Notes:                  "Default profile - please update with actual soil data",
 	}
 
@@ -335,7 +340,7 @@ func (s *IrrigationService) getOrCreateIrrigationSystem(parcelID uint) (*models.
 		return nil, fmt.Errorf("failed to create default irrigation system: %w", err)
 	}
 
-	log.Printf("✅ Created default irrigation system for parcel %d", parcelID)
+	slog.Info("Created default irrigation system", "parcel_id", parcelID)
 	return &system, nil
 }
 
@@ -344,7 +349,7 @@ func (s *IrrigationService) LogIrrigationEvent(event *models.IrrigationEvent) er
 	if err := s.DB.Create(event).Error; err != nil {
 		return fmt.Errorf("failed to log irrigation event: %w", err)
 	}
-	log.Printf("✅ Logged irrigation event for parcel %d: %.1fmm applied", event.ParcelID, event.WaterAmount)
+	slog.Info("Logged irrigation event", "parcel_id", event.ParcelID, "amount_mm", event.WaterAmount)
 	return nil
 }
 
@@ -386,4 +391,3 @@ func (s *IrrigationService) GetWaterUsageStats(parcelID uint, startDate, endDate
 
 	return stats, nil
 }
-

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useAuth } from '../contexts/AuthContext'
 import { apiCall } from '../config'
 import { Package, AlertTriangle, Calendar, DollarSign, Filter, Search, Plus, Edit2, Trash2, X } from 'lucide-react'
 
@@ -20,6 +21,7 @@ interface InventoryItem {
 
 function Inventory() {
   const { t } = useTranslation()
+  const { user } = useAuth()
   const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [filteredInventory, setFilteredInventory] = useState<InventoryItem[]>([])
   const [showModal, setShowModal] = useState(false)
@@ -88,7 +90,7 @@ function Inventory() {
       const payload = {
         ...formData,
         expiry_date: formData.expiry_date || null,
-        farm_id: 1,
+        farm_id: user?.farms?.[0]?.id || user?.farmId || (user?.farms && user.farms.length > 0 ? user.farms[0].id : 0),
       }
 
       const endpoint = editingItem

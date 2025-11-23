@@ -8,6 +8,7 @@ import 'leaflet-draw/dist/leaflet.draw.css'
 import 'leaflet-draw' // Ensure L.Draw is attached to L
 import { TreeDeciduous, MapPin, Ruler, Calendar, Trash2, Edit2, Save, X, Plus, Satellite, Cloud, AlertCircle, MousePointerClick, Trees, Droplets, Wind, Thermometer } from 'lucide-react'
 import { apiCall } from '../config'
+import { useAuth } from '../contexts/AuthContext'
 
 // Component to handle map zoom to bounds
 function MapController({ bounds }: { bounds: L.LatLngBounds | null }) {
@@ -104,6 +105,7 @@ function MapClickHandler({ onMapClick, enabled }: { onMapClick: (latlng: L.LatLn
 }
 
 function Parcels() {
+  const { user } = useAuth()
   const [parcels, setParcels] = useState<any[]>([])
   const [selectedParcel, setSelectedParcel] = useState<any>(null)
   const [mapBounds, setMapBounds] = useState<L.LatLngBounds | null>(null)
@@ -127,6 +129,17 @@ function Parcels() {
   const [newParcelName, setNewParcelName] = useState('')
   const [newParcelArea, setNewParcelArea] = useState('')
   const [newParcelTrees, setNewParcelTrees] = useState('')
+  const [selectedFarmId, setSelectedFarmId] = useState<number>(0)
+  
+  // Get user's accessible farms
+  const userFarms = user?.farms || []
+  
+  // Set default farm when farms are loaded
+  useEffect(() => {
+    if (userFarms.length > 0 && selectedFarmId === 0) {
+      setSelectedFarmId(userFarms[0].id)
+    }
+  }, [userFarms, selectedFarmId])
 
   useEffect(() => {
     fetchParcels()
@@ -288,6 +301,12 @@ function Parcels() {
 
   const handleSaveNewParcel = async () => {
     if (!newParcelGeometry) return
+    
+    // Validate farm selection
+    if (selectedFarmId === 0) {
+      alert('Please select a farm')
+      return
+    }
 
     try {
       const response = await apiCall(`/parcels`, {
@@ -295,7 +314,7 @@ function Parcels() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newParcelName,
-          farm_id: 1,
+          farm_id: selectedFarmId,
           geojson: newParcelGeometry,
           area: parseFloat(newParcelArea) || 0,
           trees_count: parseInt(newParcelTrees) || 0,
@@ -310,6 +329,10 @@ function Parcels() {
         setNewParcelName('')
         setNewParcelArea('')
         setNewParcelTrees('')
+        // Reset to first farm
+        if (userFarms.length > 0) {
+          setSelectedFarmId(userFarms[0].id)
+        }
       } else {
         const error = await response.json()
         console.error('Failed to create parcel:', error)
@@ -325,6 +348,12 @@ function Parcels() {
     setNewParcelGeometry(null)
     setIsCreating(false)
     setNewParcelName('')
+    setNewParcelArea('')
+    setNewParcelTrees('')
+    // Reset to first farm
+    if (userFarms.length > 0) {
+      setSelectedFarmId(userFarms[0].id)
+    }
   }
 
   const handleUpdateParcel = async () => {
@@ -928,6 +957,26 @@ function Parcels() {
             </div>
 
             <div className="space-y-3">
+              {/* Farm Selection - only show if user has multiple farms */}
+              {userFarms.length > 1 && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                    Farm <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={selectedFarmId}
+                    onChange={(e) => setSelectedFarmId(parseInt(e.target.value))}
+                    required
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                  >
+                    {userFarms.map((farm) => (
+                      <option key={farm.id} value={farm.id}>
+                        {farm.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Name</label>
                 <input

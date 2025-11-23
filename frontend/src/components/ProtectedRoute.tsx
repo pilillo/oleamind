@@ -8,7 +8,7 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children, roles }: ProtectedRouteProps) {
-    const { user, loading, isAuthenticated } = useAuth()
+    const { user, loading, isAuthenticated, hasRole } = useAuth()
 
     if (loading) {
         return (
@@ -25,9 +25,9 @@ export default function ProtectedRoute({ children, roles }: ProtectedRouteProps)
         return <Navigate to="/login" replace />
     }
 
-    // Check role-based access
-    if (roles && roles.length > 0 && user) {
-        if (!roles.includes(user.role)) {
+    // Check role-based access using hasRole function (which checks farms array)
+    if (roles && roles.length > 0) {
+        if (!hasRole(roles)) {
             return (
                 <div className="min-h-screen flex items-center justify-center bg-gray-50">
                     <div className="text-center max-w-md p-8">

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -14,9 +15,9 @@ import (
 )
 
 const (
-	STALE_THRESHOLD_DAYS    = 5
-	RATE_LIMIT_HOURS        = 1
-	WORKER_TIMEOUT_SECONDS  = 60
+	STALE_THRESHOLD_DAYS   = 5
+	RATE_LIMIT_HOURS       = 1
+	WORKER_TIMEOUT_SECONDS = 60
 )
 
 type SatelliteService struct{}
@@ -54,7 +55,7 @@ func (s *SatelliteService) GetOrFetchNDVI(parcelID uint, userTier string) (*Cach
 	cached, err := s.GetLatestCachedData(parcelID)
 	if err != nil {
 		// Log but don't fail - just proceed to fetch
-		fmt.Printf("Warning: error checking cache: %v\n", err)
+		slog.Warn("Error checking cache", "error", err)
 	}
 
 	// 2. No cache - fetch synchronously
@@ -67,7 +68,7 @@ func (s *SatelliteService) GetOrFetchNDVI(parcelID uint, userTier string) (*Cach
 	isStale := age > (STALE_THRESHOLD_DAYS * 24 * time.Hour)
 
 	// 4. Check rate limit
-	shouldRefetch := isStale && time.Since(cached.ProcessedAt) > (RATE_LIMIT_HOURS * time.Hour)
+	shouldRefetch := isStale && time.Since(cached.ProcessedAt) > (RATE_LIMIT_HOURS*time.Hour)
 
 	// 5. Return cached data
 	response := s.convertToResponse(cached)
@@ -256,4 +257,3 @@ func (s *SatelliteService) convertToResponse(data *models.SatelliteData) *Cached
 		Refreshing: false,
 	}
 }
-

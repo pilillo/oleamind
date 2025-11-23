@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/oleamind/backend/initializers"
 	"github.com/oleamind/backend/models"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // setupTestDB initializes a test database connection
@@ -20,7 +20,7 @@ func setupPestTestDB(t *testing.T) {
 
 	// Initialize DB
 	initializers.ConnectToDB()
-	
+
 	// Auto-migrate required tables
 	initializers.DB.AutoMigrate(
 		&models.Farm{},
@@ -129,8 +129,8 @@ func TestCalculateOliveFlyRisk(t *testing.T) {
 			}
 
 			require.NotNil(t, flyAssessment, "Olive fly assessment should be present")
-			assert.Equal(t, scenario.expectedLevel, flyAssessment.RiskLevel, 
-				"Expected %s risk level, got %s (score: %.0f)", 
+			assert.Equal(t, scenario.expectedLevel, flyAssessment.RiskLevel,
+				"Expected %s risk level, got %s (score: %.0f)",
 				scenario.expectedLevel, flyAssessment.RiskLevel, flyAssessment.RiskScore)
 			assert.NotEmpty(t, flyAssessment.AlertMessage)
 			assert.NotEmpty(t, flyAssessment.Recommendations)
@@ -272,7 +272,7 @@ func TestLogTreatment(t *testing.T) {
 	service := NewPestControlService()
 	treatment := &models.TreatmentLog{
 		ParcelID:          parcel.ID,
-		Date:              time.Now(),
+		Date:              models.DateOnly{Time: time.Now()},
 		PestType:          models.PestTypeOliveFly,
 		TreatmentType:     "chemical",
 		ProductName:       "Spinosad Bait",
@@ -313,14 +313,14 @@ func TestGetTreatmentHistory(t *testing.T) {
 	now := time.Now()
 
 	treatments := []models.TreatmentLog{
-		{ParcelID: parcel.ID, Date: now.AddDate(0, 0, -10), PestType: models.PestTypeOliveFly, TreatmentType: "trap"},
-		{ParcelID: parcel.ID, Date: now.AddDate(0, 0, -5), PestType: models.PestTypeOliveFly, TreatmentType: "chemical"},
-		{ParcelID: parcel.ID, Date: now, PestType: models.PestTypePeacockSpot, TreatmentType: "chemical"},
+		{ParcelID: parcel.ID, Date: models.DateOnly{Time: now.AddDate(0, 0, -10)}, PestType: models.PestTypeOliveFly, TreatmentType: "trap"},
+		{ParcelID: parcel.ID, Date: models.DateOnly{Time: now.AddDate(0, 0, -5)}, PestType: models.PestTypeOliveFly, TreatmentType: "chemical"},
+		{ParcelID: parcel.ID, Date: models.DateOnly{Time: now}, PestType: models.PestTypePeacockSpot, TreatmentType: "chemical"},
 	}
 
 	for _, treatment := range treatments {
-		t := treatment
-		require.NoError(t, service.LogTreatment(&t))
+		treatmentLog := treatment
+		require.NoError(t, service.LogTreatment(&treatmentLog))
 	}
 
 	// Retrieve history
@@ -381,4 +381,3 @@ func TestGetRiskHistory(t *testing.T) {
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, len(history), 1, "Should have at least one historical record")
 }
-

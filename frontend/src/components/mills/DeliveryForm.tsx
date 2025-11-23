@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Save, X, Loader2, Truck } from 'lucide-react'
 import { millService, type OliveDelivery, type Mill } from '../../services/millService'
-import { API_URL } from '../../config'
+import { apiCall } from '../../config'
 
 interface DeliveryFormProps {
     onSuccess: () => void
@@ -30,7 +30,7 @@ export function DeliveryForm({ onSuccess, onCancel, initialData }: DeliveryFormP
             try {
                 const [millsData, parcelsRes] = await Promise.all([
                     millService.getMills(true),
-                    fetch(`${API_URL}/parcels`)
+                    apiCall('/parcels')
                 ])
 
                 setMills(millsData)

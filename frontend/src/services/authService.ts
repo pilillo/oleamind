@@ -11,6 +11,12 @@ export interface User {
         id: number
         name: string
     }
+    farms?: Array<{
+        id: number
+        name: string
+        role: string
+        tier?: string
+    }>
     emailVerified: boolean
     active: boolean
     lastLogin?: string
@@ -26,8 +32,8 @@ export interface RegisterData {
     password: string
     firstName: string
     lastName: string
-    role?: string
-    farmId?: number
+    farmName: string
+    farmAddress?: string
 }
 
 export interface AuthResponse {

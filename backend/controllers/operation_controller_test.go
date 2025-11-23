@@ -14,6 +14,7 @@ import (
 	"github.com/oleamind/backend/initializers"
 	"github.com/oleamind/backend/models"
 	"github.com/stretchr/testify/assert"
+	"gorm.io/gorm"
 )
 
 func setupOperationTestDB(t *testing.T) {
@@ -51,13 +52,17 @@ func TestCreateOperation(t *testing.T) {
 	initializers.DB.Create(&parcel)
 
 	router := gin.Default()
+	router.Use(func(c *gin.Context) {
+		c.Set("user", models.User{Model: gorm.Model{ID: 1}, FirstName: "Test", LastName: "User"})
+		c.Next()
+	})
 	router.POST("/operations", CreateOperation)
 
 	t.Run("Create valid operation", func(t *testing.T) {
 		operation := models.OperationLog{
 			Type:        "pruning",
 			Category:    "maintenance",
-			Date:        time.Now(),
+			Date:        models.DateOnly{Time: time.Now()},
 			Description: "Winter pruning",
 			ParcelID:    parcel.ID,
 			LaborHours:  8.5,
@@ -87,7 +92,7 @@ func TestCreateOperation(t *testing.T) {
 		operation := models.OperationLog{
 			Type:        "pest_control",
 			Category:    "phytosanitary",
-			Date:        time.Now(),
+			Date:        models.DateOnly{Time: time.Now()},
 			Description: "Olive fly treatment",
 			ParcelID:    parcel.ID,
 			ProductName: "Organic Spray X",
@@ -143,7 +148,7 @@ func TestGetOperations(t *testing.T) {
 	op1 := models.OperationLog{
 		Type:     "pruning",
 		Category: "maintenance",
-		Date:     time.Now(),
+		Date:     models.DateOnly{Time: time.Now()},
 		ParcelID: parcel.ID,
 		Status:   "completed",
 		FarmID:   1,
@@ -151,7 +156,7 @@ func TestGetOperations(t *testing.T) {
 	op2 := models.OperationLog{
 		Type:     "fertilization",
 		Category: "fertilization",
-		Date:     time.Now().AddDate(0, 0, -1),
+		Date:     models.DateOnly{Time: time.Now().AddDate(0, 0, -1)},
 		ParcelID: parcel.ID,
 		Status:   "completed",
 		FarmID:   1,
@@ -160,6 +165,10 @@ func TestGetOperations(t *testing.T) {
 	initializers.DB.Create(&op2)
 
 	router := gin.Default()
+	router.Use(func(c *gin.Context) {
+		c.Set("user", models.User{Model: gorm.Model{ID: 1}, FirstName: "Test", LastName: "User"})
+		c.Next()
+	})
 	router.GET("/operations", GetOperations)
 
 	t.Run("Get all operations", func(t *testing.T) {
@@ -185,7 +194,7 @@ func TestGetOperations(t *testing.T) {
 
 		var operations []models.OperationLog
 		json.Unmarshal(w.Body.Bytes(), &operations)
-		
+
 		for _, op := range operations {
 			assert.Equal(t, "pruning", op.Type)
 		}
@@ -215,7 +224,7 @@ func TestUpdateOperation(t *testing.T) {
 	operation := models.OperationLog{
 		Type:     "pruning",
 		Category: "maintenance",
-		Date:     time.Now(),
+		Date:     models.DateOnly{Time: time.Now()},
 		ParcelID: parcel.ID,
 		Status:   "planned",
 		FarmID:   1,
@@ -223,16 +232,20 @@ func TestUpdateOperation(t *testing.T) {
 	initializers.DB.Create(&operation)
 
 	router := gin.Default()
+	router.Use(func(c *gin.Context) {
+		c.Set("user", models.User{Model: gorm.Model{ID: 1}, FirstName: "Test", LastName: "User"})
+		c.Next()
+	})
 	router.PUT("/operations/:id", UpdateOperation)
 
 	t.Run("Update operation status", func(t *testing.T) {
 		updates := map[string]interface{}{
-			"type":     "pruning",
-			"category": "maintenance",
-			"date":     time.Now(),
+			"type":      "pruning",
+			"category":  "maintenance",
+			"date":      time.Now(),
 			"parcel_id": parcel.ID,
-			"status":   "completed",
-			"cost":     200.50,
+			"status":    "completed",
+			"cost":      200.50,
 		}
 
 		jsonData, _ := json.Marshal(updates)
@@ -261,13 +274,17 @@ func TestDeleteOperation(t *testing.T) {
 	operation := models.OperationLog{
 		Type:     "irrigation",
 		Category: "maintenance",
-		Date:     time.Now(),
+		Date:     models.DateOnly{Time: time.Now()},
 		ParcelID: parcel.ID,
 		FarmID:   1,
 	}
 	initializers.DB.Create(&operation)
 
 	router := gin.Default()
+	router.Use(func(c *gin.Context) {
+		c.Set("user", models.User{Model: gorm.Model{ID: 1}, FirstName: "Test", LastName: "User"})
+		c.Next()
+	})
 	router.DELETE("/operations/:id", DeleteOperation)
 
 	t.Run("Delete operation", func(t *testing.T) {
@@ -294,9 +311,9 @@ func TestGetPhytosanitaryRegister(t *testing.T) {
 
 	// Create various operations
 	ops := []models.OperationLog{
-		{Type: "pest_control", Category: "phytosanitary", Date: time.Now(), ParcelID: parcel.ID, ProductName: "Spray A", FarmID: 1},
-		{Type: "fertilization", Category: "fertilization", Date: time.Now(), ParcelID: parcel.ID, ProductName: "Fertilizer B", FarmID: 1},
-		{Type: "pruning", Category: "maintenance", Date: time.Now(), ParcelID: parcel.ID, FarmID: 1},
+		{Type: "pest_control", Category: "phytosanitary", Date: models.DateOnly{Time: time.Now()}, ParcelID: parcel.ID, ProductName: "Spray A", FarmID: 1},
+		{Type: "fertilization", Category: "fertilization", Date: models.DateOnly{Time: time.Now()}, ParcelID: parcel.ID, ProductName: "Fertilizer B", FarmID: 1},
+		{Type: "pruning", Category: "maintenance", Date: models.DateOnly{Time: time.Now()}, ParcelID: parcel.ID, FarmID: 1},
 	}
 
 	for _, op := range ops {
@@ -304,6 +321,10 @@ func TestGetPhytosanitaryRegister(t *testing.T) {
 	}
 
 	router := gin.Default()
+	router.Use(func(c *gin.Context) {
+		c.Set("user", models.User{Model: gorm.Model{ID: 1}, FirstName: "Test", LastName: "User"})
+		c.Next()
+	})
 	router.GET("/operations/phytosanitary", GetPhytosanitaryRegister)
 
 	t.Run("Get phytosanitary register", func(t *testing.T) {
@@ -316,13 +337,12 @@ func TestGetPhytosanitaryRegister(t *testing.T) {
 
 		var operations []models.OperationLog
 		json.Unmarshal(w.Body.Bytes(), &operations)
-		
+
 		// Should only include phytosanitary and fertilization, not maintenance
 		assert.GreaterOrEqual(t, len(operations), 2)
-		
+
 		for _, op := range operations {
 			assert.Contains(t, []string{"phytosanitary", "fertilization"}, op.Category)
 		}
 	})
 }
-

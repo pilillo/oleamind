@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Sparkles, BrainCircuit } from 'lucide-react'
 import { harvestService, type YieldPrediction } from '../../services/harvestService'
-import { API_URL } from '../../config'
+import { apiCall } from '../../config'
 
 export function YieldPredictionPanel() {
     const [predictions, setPredictions] = useState<YieldPrediction[]>([])
@@ -23,7 +23,10 @@ export function YieldPredictionPanel() {
 
     const fetchParcels = async () => {
         try {
-            const response = await fetch(`${API_URL}/parcels`)
+            const response = await apiCall('/parcels')
+            if (!response.ok) {
+                throw new Error('Failed to fetch parcels')
+            }
             const data = await response.json()
             setParcels(data)
             if (data.length > 0) {

@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -30,7 +31,7 @@ func CreateMill(c *gin.Context) {
 
 func GetMills(c *gin.Context) {
 	activeOnly := c.DefaultQuery("active_only", "false") == "true"
-	
+
 	service := services.NewMillService()
 	mills, err := service.GetMills(activeOnly)
 	if err != nil {
@@ -204,23 +205,49 @@ func DeleteDelivery(c *gin.Context) {
 // ===== Oil Batch Management =====
 
 func CreateOilBatch(c *gin.Context) {
-	var request struct {
-		Batch              models.OilBatch `json:"batch"`
-		SourceDeliveryIDs  []uint          `json:"source_delivery_ids"`
+	var payload struct {
+		Batch             models.OilBatch `json:"batch"`
+		SourceDeliveryIDs []uint          `json:"source_delivery_ids"`
 	}
 
-	if err := c.ShouldBindJSON(&request); err != nil {
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		slog.Warn("CreateOilBatch validation error", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	slog.Info("CreateOilBatch request",
+		"mill_id", payload.Batch.MillID,
+		"batch_number", payload.Batch.BatchNumber,
+		"production_date", payload.Batch.ProductionDate,
+		"quantity_liters", payload.Batch.QuantityLiters,
+	)
+
+	// Validate required fields
+	if payload.Batch.MillID == 0 {
+		slog.Warn("CreateOilBatch: mill_id is required")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "mill_id is required"})
+		return
+	}
+	if payload.Batch.BatchNumber == "" {
+		slog.Warn("CreateOilBatch: batch_number is required")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "batch_number is required"})
+		return
+	}
+	if payload.Batch.QuantityLiters <= 0 {
+		slog.Warn("CreateOilBatch: quantity_liters must be greater than 0")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "quantity_liters must be greater than 0"})
+		return
+	}
+
 	service := services.NewMillService()
-	if err := service.CreateOilBatch(&request.Batch, request.SourceDeliveryIDs); err != nil {
+	if err := service.CreateOilBatch(&payload.Batch, payload.SourceDeliveryIDs); err != nil {
+		slog.Error("Failed to create oil batch", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, request.Batch)
+	c.JSON(http.StatusCreated, payload.Batch)
 }
 
 func GetOilBatches(c *gin.Context) {
@@ -472,4 +499,3 @@ func GetProductionStats(c *gin.Context) {
 
 	c.JSON(http.StatusOK, stats)
 }
-

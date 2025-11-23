@@ -3,7 +3,6 @@ package controllers
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +12,7 @@ import (
 	"github.com/oleamind/backend/initializers"
 	"github.com/oleamind/backend/models"
 	"github.com/stretchr/testify/assert"
+	"gorm.io/gorm"
 )
 
 func setupParcelTestDB(t *testing.T) {
@@ -44,6 +44,10 @@ func TestParcelAreaCalculation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	router := gin.Default()
+	router.Use(func(c *gin.Context) {
+		c.Set("user", models.User{Model: gorm.Model{ID: 1}, FirstName: "Test", LastName: "User"})
+		c.Next()
+	})
 	router.POST("/parcels", CreateParcel)
 
 	t.Run("Calculate area from polygon geometry", func(t *testing.T) {
@@ -56,11 +60,11 @@ func TestParcelAreaCalculation(t *testing.T) {
 				"type": "Polygon",
 				"coordinates": []interface{}{
 					[]interface{}{
-						[]float64{12.5, 41.9},       // Southwest corner
-						[]float64{12.501, 41.9},     // Southeast corner
-						[]float64{12.501, 41.901},   // Northeast corner
-						[]float64{12.5, 41.901},     // Northwest corner
-						[]float64{12.5, 41.9},       // Close the polygon
+						[]float64{12.5, 41.9},     // Southwest corner
+						[]float64{12.501, 41.9},   // Southeast corner
+						[]float64{12.501, 41.901}, // Northeast corner
+						[]float64{12.5, 41.901},   // Northwest corner
+						[]float64{12.5, 41.9},     // Close the polygon
 					},
 				},
 			},
@@ -87,7 +91,7 @@ func TestParcelAreaCalculation(t *testing.T) {
 		assert.Greater(t, response.Area, 0.0, "Area should be calculated automatically")
 		assert.InDelta(t, 1.0, response.Area, 0.5, "Area should be approximately 1 hectare")
 
-		fmt.Printf("✅ Created parcel with auto-calculated area: %.4f ha\n", response.Area)
+		t.Logf("Created parcel with auto-calculated area: %.4f ha", response.Area)
 	})
 
 	t.Run("Create larger parcel with known area", func(t *testing.T) {
@@ -100,8 +104,8 @@ func TestParcelAreaCalculation(t *testing.T) {
 				"coordinates": []interface{}{
 					[]interface{}{
 						[]float64{12.5, 41.9},
-						[]float64{12.502, 41.9},     // ~200m east
-						[]float64{12.502, 41.905},   // ~500m north
+						[]float64{12.502, 41.9},   // ~200m east
+						[]float64{12.502, 41.905}, // ~500m north
 						[]float64{12.5, 41.905},
 						[]float64{12.5, 41.9},
 					},
@@ -125,7 +129,7 @@ func TestParcelAreaCalculation(t *testing.T) {
 		assert.Greater(t, response.Area, 5.0, "Area should be at least 5 hectares")
 		assert.Less(t, response.Area, 20.0, "Area should be less than 20 hectares")
 
-		fmt.Printf("✅ Created large parcel with auto-calculated area: %.4f ha\n", response.Area)
+		t.Logf("Created large parcel with auto-calculated area: %.4f ha", response.Area)
 	})
 }
 
@@ -149,8 +153,7 @@ func TestParcelAreaPrecision(t *testing.T) {
 		assert.Greater(t, areaHectares, 0.0, "Area should be greater than 0")
 		assert.Less(t, areaHectares, 2.0, "Area should be reasonable (less than 2 ha for this small polygon)")
 
-		fmt.Printf("📐 PostGIS calculated area using geography type: %.6f ha\n", areaHectares)
-		fmt.Printf("   (This is the accurate real-world area accounting for Earth's curvature)\n")
+		t.Logf("📐 PostGIS calculated area using geography type: %.6f ha", areaHectares)
+		t.Logf("   (This is the accurate real-world area accounting for Earth's curvature)")
 	})
 }
-

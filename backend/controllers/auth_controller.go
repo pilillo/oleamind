@@ -14,15 +14,15 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// Register creates a new user account
+// Register creates a new user account and farm
 func Register(c *gin.Context) {
 	var body struct {
-		Email     string `json:"email" binding:"required,email"`
-		Password  string `json:"password" binding:"required,min=8"`
-		FirstName string `json:"firstName"`
-		LastName  string `json:"lastName"`
-		Role      string `json:"role"`
-		FarmID    *uint  `json:"farmId"`
+		Email       string `json:"email" binding:"required,email"`
+		Password    string `json:"password" binding:"required,min=8"`
+		FirstName   string `json:"firstName"`
+		LastName    string `json:"lastName"`
+		FarmName    string `json:"farmName" binding:"required"`    // Required: new farm name
+		FarmAddress string `json:"farmAddress"`                     // Optional: farm address
 	}
 
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -37,38 +37,61 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	// Set default role if not provided
-	role := body.Role
-	if role == "" {
-		role = "viewer"
-	}
-
 	// Generate verification token
 	verificationToken := generateToken()
 
+	// Create user
 	user := models.User{
 		Email:             body.Email,
 		Password:          string(hash),
 		FirstName:         body.FirstName,
 		LastName:          body.LastName,
-		Role:              role,
-		FarmID:            body.FarmID,
 		VerificationToken: verificationToken,
 		EmailVerified:     false,
 		Active:            true,
 	}
 
-	// Create user
+	// Create user first
 	if result := initializers.DB.Create(&user); result.Error != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Email already exists or invalid data"})
 		return
 	}
 
+	// Create farm with user as owner
+	farm := models.Farm{
+		Name:               body.FarmName,
+		Address:            body.FarmAddress,
+		OwnerID:            user.ID,
+		Tier:               "free", // Start with free tier
+		SubscriptionStatus: "active",
+	}
+
+	if err := initializers.DB.Create(&farm).Error; err != nil {
+		// Rollback user creation if farm creation fails
+		initializers.DB.Delete(&user)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create farm"})
+		return
+	}
+
+	// Create UserFarm relationship with owner role
+	userFarm := models.UserFarm{
+		UserID: user.ID,
+		FarmID: farm.ID,
+		Role:   "owner",
+	}
+
+	if err := initializers.DB.Create(&userFarm).Error; err != nil {
+		// Rollback farm and user
+		initializers.DB.Delete(&farm)
+		initializers.DB.Delete(&user)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to associate user with farm"})
+		return
+	}
+
 	// Generate JWT token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":  user.ID,
-		"role": user.Role,
-		"exp":  time.Now().Add(time.Hour * 24).Unix(), // 24 hours
+		"sub": user.ID,
+		"exp": time.Now().Add(time.Hour * 24).Unix(), // 24 hours
 	})
 
 	tokenString, err := token.SignedString([]byte(os.Getenv("SECRET")))
@@ -83,6 +106,15 @@ func Register(c *gin.Context) {
 
 	// TODO: Send verification email
 
+	// Build farms array with roles (user is owner of the newly created farm)
+	farms := []gin.H{
+		{
+			"id":   farm.ID,
+			"name": farm.Name,
+			"role": "owner",
+		},
+	}
+
 	c.JSON(http.StatusCreated, gin.H{
 		"token": tokenString,
 		"user": gin.H{
@@ -90,10 +122,16 @@ func Register(c *gin.Context) {
 			"email":         user.Email,
 			"firstName":     user.FirstName,
 			"lastName":      user.LastName,
-			"role":          user.Role,
-			"farmId":        user.FarmID,
 			"emailVerified": user.EmailVerified,
 			"active":        user.Active,
+			"farms":         farms,
+		},
+		"farm": gin.H{
+			"id":        farm.ID,
+			"name":      farm.Name,
+			"address":   farm.Address,
+			"tier":      farm.Tier,
+			"ownerId":   farm.OwnerID,
 		},
 	})
 }
@@ -112,7 +150,7 @@ func Login(c *gin.Context) {
 
 	// Find user
 	var user models.User
-	if err := initializers.DB.Preload("Farm").Where("email = ?", body.Email).First(&user).Error; err != nil {
+	if err := initializers.DB.Preload("Farms").Preload("UserFarms").Where("email = ?", body.Email).First(&user).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 		return
 	}
@@ -129,11 +167,10 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// Generate JWT token
+	// Generate JWT token (no role in token - roles are farm-scoped)
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":  user.ID,
-		"role": user.Role,
-		"exp":  time.Now().Add(time.Hour * 24).Unix(), // 24 hours
+		"sub": user.ID,
+		"exp": time.Now().Add(time.Hour * 24).Unix(), // 24 hours
 	})
 
 	tokenString, err := token.SignedString([]byte(os.Getenv("SECRET")))
@@ -151,6 +188,20 @@ func Login(c *gin.Context) {
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie("Authorization", tokenString, 3600*24, "", "", false, true)
 
+	// Load user farms with roles
+	var userFarms []models.UserFarm
+	initializers.DB.Where("user_id = ?", user.ID).Preload("Farm").Find(&userFarms)
+	
+	// Build farms array with roles
+	var farms []gin.H
+	for _, uf := range userFarms {
+		farms = append(farms, gin.H{
+			"id":   uf.Farm.ID,
+			"name": uf.Farm.Name,
+			"role": uf.Role,
+		})
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"token": tokenString,
 		"user": gin.H{
@@ -158,9 +209,8 @@ func Login(c *gin.Context) {
 			"email":         user.Email,
 			"firstName":     user.FirstName,
 			"lastName":      user.LastName,
-			"role":          user.Role,
-			"farmId":        user.FarmID,
 			"emailVerified": user.EmailVerified,
+			"farms":         farms,
 		},
 	})
 }
@@ -180,18 +230,33 @@ func GetCurrentUser(c *gin.Context) {
 	}
 
 	u := user.(models.User)
+	
+	// Load user farms with roles
+	var userFarms []models.UserFarm
+	initializers.DB.Where("user_id = ?", u.ID).Preload("Farm").Find(&userFarms)
+	
+	// Build farms array with roles
+	var farms []gin.H
+	for _, uf := range userFarms {
+		farms = append(farms, gin.H{
+			"id":     uf.Farm.ID,
+			"name":   uf.Farm.Name,
+			"address": uf.Farm.Address,
+			"role":   uf.Role,
+			"tier":   uf.Farm.Tier,
+		})
+	}
+	
 	c.JSON(http.StatusOK, gin.H{
 		"user": gin.H{
 			"id":            u.ID,
 			"email":         u.Email,
 			"firstName":     u.FirstName,
 			"lastName":      u.LastName,
-			"role":          u.Role,
-			"farmId":        u.FarmID,
-			"farm":          u.Farm,
 			"emailVerified": u.EmailVerified,
 			"active":        u.Active,
 			"lastLogin":     u.LastLogin,
+			"farms":         farms,
 		},
 	})
 }
@@ -206,11 +271,10 @@ func RefreshToken(c *gin.Context) {
 
 	u := user.(models.User)
 
-	// Generate new token
+	// Generate new token (no role in token - roles are farm-scoped)
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":  u.ID,
-		"role": u.Role,
-		"exp":  time.Now().Add(time.Hour * 24).Unix(),
+		"sub": u.ID,
+		"exp": time.Now().Add(time.Hour * 24).Unix(),
 	})
 
 	tokenString, err := token.SignedString([]byte(os.Getenv("SECRET")))

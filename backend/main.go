@@ -1,16 +1,15 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"os"
-	"strings"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/oleamind/backend/controllers"
 	"github.com/oleamind/backend/initializers"
 	"github.com/oleamind/backend/middleware"
-	"github.com/oleamind/backend/models"
+	"github.com/oleamind/backend/models" // Keep models for AutoMigrate
 )
 
 func init() {
@@ -18,6 +17,10 @@ func init() {
 }
 
 func main() {
+	// Initialize structured logging
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
+
 	r := gin.Default()
 
 	// CORS middleware - Configure to allow Authorization header
@@ -37,6 +40,7 @@ func main() {
 		&models.User{},
 		&models.Session{}, // Add Session model
 		&models.Farm{},
+		&models.UserFarm{}, // User-Farm join table with roles
 		&models.Parcel{},
 		&models.ParcelVariety{},
 		&models.InventoryItem{},
@@ -64,18 +68,17 @@ func main() {
 		&models.OilSale{},
 	)
 
-	// Purge NDVI cache at startup if configured
-	purgeCache := os.Getenv("PURGE_NDVI_CACHE_ON_STARTUP")
-	if strings.ToLower(purgeCache) == "true" || purgeCache == "1" {
-		log.Println("🗑️  Purging NDVI cache on startup (PURGE_NDVI_CACHE_ON_STARTUP=true)")
+	// Purge NDVI cache on startup if configured (useful for development/debugging)
+	if os.Getenv("PURGE_NDVI_CACHE_ON_STARTUP") == "true" {
+		slog.Info("Purging NDVI cache on startup (PURGE_NDVI_CACHE_ON_STARTUP=true)")
 		result := initializers.DB.Exec("DELETE FROM satellite_data")
 		if result.Error != nil {
-			log.Printf("⚠️  Failed to purge NDVI cache: %v", result.Error)
+			slog.Error("Failed to purge NDVI cache", "error", result.Error)
 		} else {
-			log.Printf("✅ Purged %d NDVI records from cache", result.RowsAffected)
+			slog.Info("Purged NDVI records from cache", "count", result.RowsAffected)
 		}
 	} else {
-		log.Println("ℹ️  NDVI cache purge disabled (set PURGE_NDVI_CACHE_ON_STARTUP=true to enable)")
+		slog.Info("NDVI cache purge disabled (set PURGE_NDVI_CACHE_ON_STARTUP=true to enable)")
 	}
 
 	// ==================== PUBLIC ROUTES ====================

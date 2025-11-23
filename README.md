@@ -266,7 +266,7 @@ Owner (Full Control)
 
 ## Design constraints
 - both frontend and backend functions will be unit tested
-- structured logging should be used instead of prints
+- **Logging**: Use Go's `log/slog` with JSON output for structured logging. No emojis in log messages.
 
 ## Implementation Status
 
@@ -407,10 +407,11 @@ Owner (Full Control)
 - 📖 See `doc/HARVEST_MANAGEMENT_COMPLETE.md` for details
 
 #### 8. Mills & Olive Processing
-**Backend Complete:**
+**Complete (Backend + Frontend):**
 - ✅ Mill management (facilities, certifications, capacity)
 - ✅ Olive delivery tracking with quality metrics
 - ✅ Oil batch production with source traceability
+- ✅ Automatic yield percentage calculation
 - ✅ Quality analysis (EU Regulation 2568/91 compliance)
 - ✅ Automatic EVOO/Virgin/Lampante classification
 - ✅ Bottling operations management
@@ -419,18 +420,11 @@ Owner (Full Control)
 - ✅ Production statistics and analytics
 - ✅ Monocultivar oil support
 - ✅ DOP/IGP/Organic certification tracking
+- ✅ Full UI with 6 tabs: Mills, Deliveries, Batches, Quality, Bottling, Sales
 - 📖 See `doc/MILLS_PROCESSING_COMPLETE.md` for details
 
-**Frontend (Pending):**
-- ⏳ Mills directory and management UI
-- ⏳ Delivery recording interface
-- ⏳ Production batch creation
-- ⏳ Quality lab results entry
-- ⏳ Traceability dashboard
-- ⏳ Bottling and sales interface
-
 ### 📋 Pending Features
-- ⏳ 9. Analytics & Reporting (advanced dashboards)
+- ⏳ 9. Analytics & Reporting (advanced dashboards beyond current implementation)
 
 ## Technology Stack
 

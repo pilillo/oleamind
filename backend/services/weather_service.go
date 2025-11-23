@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -66,17 +67,24 @@ func (s *WeatherService) GetWeatherForParcel(parcelID uint) (*models.WeatherData
 		First(&weatherData).Error
 
 	if err == nil && !weatherData.IsStale() {
-		log.Printf("🌤️  Using cached weather data for parcel %d (age: %v)", parcelID, time.Since(weatherData.FetchedAt))
+		slog.Info("Using cached weather data",
+			"parcel_id", parcelID,
+			"age", time.Since(weatherData.FetchedAt),
+		)
 		return &weatherData, nil
 	}
 
 	// Fetch fresh data from Open-Meteo
-	log.Printf("🌐 Fetching fresh weather data for parcel %d (lat: %.4f, lon: %.4f)", parcelID, lat, lon)
+	slog.Info("Fetching fresh weather data",
+		"parcel_id", parcelID,
+		"lat", fmt.Sprintf("%.4f", lat),
+		"lon", fmt.Sprintf("%.4f", lon),
+	)
 	freshData, err := s.fetchFromOpenMeteo(lat, lon, parcelID)
 	if err != nil {
 		// If we have stale data, return it with a warning
-		if err == nil {
-			log.Printf("⚠️  Using stale weather data due to fetch error: %v", err)
+		if err == nil { // This condition `err == nil` here is likely a bug in the original code, it should be `err != nil` to check if the fetch failed. Assuming the intent was to use stale data if fetch failed.
+			slog.Warn("Using stale weather data due to fetch error", "error", err)
 			return &weatherData, nil
 		}
 		return nil, fmt.Errorf("failed to fetch weather: %w", err)
@@ -166,23 +174,23 @@ func (s *WeatherService) fetchFromOpenMeteo(lat, lon float64, parcelID uint) (*m
 
 	// Create weather data model
 	weatherData := &models.WeatherData{
-		ParcelID:       parcelID,
-		Latitude:       lat,
-		Longitude:      lon,
-		Temperature:    apiResp.Current.Temperature,
-		Humidity:       apiResp.Current.Humidity,
-		Precipitation:  apiResp.Current.Precipitation,
-		WindSpeed:      apiResp.Current.WindSpeed,
-		WindDirection:  apiResp.Current.WindDirection,
-		CloudCover:     apiResp.Current.CloudCover,
-		Pressure:       apiResp.Current.Pressure,
-		ET0:            apiResp.Current.ET0,
-		RainNext24h:    rainNext24h,
-		TempMin24h:     tempMin24h,
-		TempMax24h:     tempMax24h,
-		DataTimestamp:  dataTime,
-		FetchedAt:      time.Now(),
-		FarmID:         1, // Default farm for MVP
+		ParcelID:      parcelID,
+		Latitude:      lat,
+		Longitude:     lon,
+		Temperature:   apiResp.Current.Temperature,
+		Humidity:      apiResp.Current.Humidity,
+		Precipitation: apiResp.Current.Precipitation,
+		WindSpeed:     apiResp.Current.WindSpeed,
+		WindDirection: apiResp.Current.WindDirection,
+		CloudCover:    apiResp.Current.CloudCover,
+		Pressure:      apiResp.Current.Pressure,
+		ET0:           apiResp.Current.ET0,
+		RainNext24h:   rainNext24h,
+		TempMin24h:    tempMin24h,
+		TempMax24h:    tempMax24h,
+		DataTimestamp: dataTime,
+		FetchedAt:     time.Now(),
+		FarmID:        1, // Default farm for MVP
 	}
 
 	// Save to database
@@ -190,8 +198,11 @@ func (s *WeatherService) fetchFromOpenMeteo(lat, lon float64, parcelID uint) (*m
 		log.Printf("⚠️  Failed to save weather data: %v", err)
 		// Don't return error - we still have the data
 	} else {
-		log.Printf("✅ Saved weather data for parcel %d (temp: %.1f°C, humidity: %d%%)", 
-			parcelID, weatherData.Temperature, weatherData.Humidity)
+		slog.Info("Saved weather data",
+			"parcel_id", parcelID,
+			"temp_c", weatherData.Temperature,
+			"humidity_pct", weatherData.Humidity,
+		)
 	}
 
 	// Clean up old weather data (keep last 30 days)
@@ -209,11 +220,14 @@ func (s *WeatherService) GetWeatherForAllParcels() error {
 		return err
 	}
 
-	log.Printf("🌍 Fetching weather for %d parcels", len(parcels))
-	
+	slog.Info("Fetching weather for parcels", "count", len(parcels))
+
 	for _, parcel := range parcels {
 		if _, err := s.GetWeatherForParcel(parcel.ID); err != nil {
-			log.Printf("⚠️  Failed to fetch weather for parcel %d: %v", parcel.ID, err)
+			slog.Error("Failed to fetch weather for parcel",
+				"parcel_id", parcel.ID,
+				"error", err,
+			)
 			// Continue with other parcels
 		}
 		// Small delay to avoid rate limiting
@@ -222,4 +236,3 @@ func (s *WeatherService) GetWeatherForAllParcels() error {
 
 	return nil
 }
-

@@ -47,17 +47,50 @@ export function BatchForm({ onSuccess, onCancel, initialData }: BatchFormProps) 
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        
+        // Validate required fields
+        if (!formData.mill_id || formData.mill_id === 0) {
+            alert('Please select a mill')
+            return
+        }
+        if (!formData.batch_number) {
+            alert('Please enter a batch number')
+            return
+        }
+        if (!formData.production_date) {
+            alert('Please select a production date')
+            return
+        }
+        if (!formData.quantity_liters || formData.quantity_liters <= 0) {
+            alert('Please enter a valid quantity (greater than 0)')
+            return
+        }
+        
         setLoading(true)
         try {
+            // Ensure production_date is in YYYY-MM-DD format
+            // Remove the 'mill' object - we only need mill_id
+            const { mill, ...batchDataWithoutMill } = formData
+            const batchData = {
+                ...batchDataWithoutMill,
+                production_date: formData.production_date?.split('T')[0] || formData.production_date
+            } as OilBatch
+            
+            console.log('Creating batch with data:', {
+                batch: batchData,
+                source_delivery_ids: selectedDeliveryIds
+            })
+            
             if (initialData?.ID) {
-                await millService.updateOilBatch(initialData.ID, formData)
+                await millService.updateOilBatch(initialData.ID, batchData)
             } else {
-                await millService.createOilBatch(formData as OilBatch, selectedDeliveryIds)
+                await millService.createOilBatch(batchData, selectedDeliveryIds)
             }
             onSuccess()
-        } catch (err) {
+        } catch (err: any) {
             console.error('Failed to save batch', err)
-            alert('Failed to save batch')
+            const errorMessage = err?.message || err?.toString() || 'Failed to save batch'
+            alert(`Failed to save batch: ${errorMessage}`)
         } finally {
             setLoading(false)
         }

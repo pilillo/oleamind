@@ -54,12 +54,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const handleLogin = async (email: string, password: string) => {
         const response = await authService.login({ email, password })
-        setUser(response.user)
+        // Ensure user has farms array and compute role for backward compatibility
+        const userWithRole = {
+            ...response.user,
+            role: response.user.farms?.some((f: any) => f.role === 'owner') ? 'owner' : 
+                  response.user.farms?.[0]?.role || response.user.role || 'viewer'
+        }
+        setUser(userWithRole)
     }
 
     const handleRegister = async (data: any) => {
         const response = await authService.register(data)
-        setUser(response.user)
+        // Ensure user has farms array and compute role for backward compatibility
+        const userWithRole = {
+            ...response.user,
+            role: response.user.farms?.some((f: any) => f.role === 'owner') ? 'owner' : 
+                  response.user.farms?.[0]?.role || response.user.role || 'viewer'
+        }
+        setUser(userWithRole)
     }
 
     const handleLogout = async () => {
@@ -70,7 +82,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const refreshUser = async () => {
         try {
             const currentUser = await authService.getCurrentUser()
-            setUser(currentUser)
+            // Ensure user has farms array and compute role for backward compatibility
+            const userWithRole = {
+                ...currentUser,
+                role: currentUser.farms?.some((f: any) => f.role === 'owner') ? 'owner' : 
+                      currentUser.farms?.[0]?.role || currentUser.role || 'viewer'
+            }
+            setUser(userWithRole)
         } catch (error) {
             console.error('Failed to refresh user:', error)
             handleLogout()
@@ -79,6 +97,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const hasRole = (roles: string[]): boolean => {
         if (!user) return false
+        
+        // Check if user is owner of any farm (owners have access to everything)
+        const isOwner = user.farms?.some(farm => farm.role === 'owner') || false
+        if (isOwner) {
+            // Owners have access to all roles
+            return true
+        }
+        
+        // For non-owners, check if they have the required role in any of their farms
+        if (user.farms && user.farms.length > 0) {
+            return user.farms.some(farm => roles.includes(farm.role))
+        }
+        
+        // Fallback to legacy role field if farms array is not available
         return roles.includes(user.role)
     }
 

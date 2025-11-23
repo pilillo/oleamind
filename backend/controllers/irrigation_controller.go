@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -23,7 +23,10 @@ func GetIrrigationRecommendation(c *gin.Context) {
 	irrigationService := services.NewIrrigationService()
 	recommendation, err := irrigationService.CalculateRecommendation(uint(parcelID))
 	if err != nil {
-		log.Printf("⚠️ Failed to calculate irrigation recommendation for parcel %d: %v", parcelID, err)
+		slog.Error("Failed to calculate irrigation recommendation",
+			"parcel_id", parcelID,
+			"error", err,
+		)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -170,4 +173,3 @@ func UpdateIrrigationSystem(c *gin.Context) {
 
 	c.JSON(http.StatusOK, system)
 }
-

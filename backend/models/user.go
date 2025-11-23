@@ -12,20 +12,22 @@ type User struct {
 	Password           string     `gorm:"not null" json:"-"`
 	FirstName          string     `json:"firstName"`
 	LastName           string     `json:"lastName"`
-	Role               string     `gorm:"not null;default:'viewer'" json:"role"` // owner, agronomist, mill_operator, viewer
-	FarmID             *uint      `gorm:"index" json:"farmId"`
-	Farm               *Farm      `json:"farm,omitempty"`
 	Active             bool       `gorm:"default:true" json:"active"`
 	LastLogin          *time.Time `json:"lastLogin,omitempty"`
 	EmailVerified      bool       `gorm:"default:false" json:"emailVerified"`
 	VerificationToken  string     `json:"-"`
 	ResetToken         string     `json:"-"`
 	ResetTokenExpiry   *time.Time `json:"-"`
-	Tier               string     `gorm:"default:'free'" json:"tier"` // free, premium
+	
+	// Relationships - Role is now in UserFarm join table (farm-scoped)
+	Farms     []Farm     `gorm:"many2many:user_farms;" json:"farms,omitempty"`
+	UserFarms []UserFarm `json:"userFarms,omitempty"` // Direct access to join table with roles
 	
 	// Legacy fields for backward compatibility
 	Name  string `json:"name"` // Deprecated: use FirstName + LastName
-	Farms []Farm `gorm:"many2many:user_farms;" json:"farms,omitempty"`
+	Role  string `json:"role,omitempty"` // Deprecated: use UserFarms[].Role instead
+	FarmID *uint `json:"farmId,omitempty"` // Deprecated: use Farms relationship instead
+	Tier   string `json:"tier,omitempty"` // Deprecated: use Farm.Tier instead
 }
 
 // Session represents an active user session

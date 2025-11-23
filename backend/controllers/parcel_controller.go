@@ -1,26 +1,45 @@
 package controllers
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/oleamind/backend/initializers"
 	"github.com/oleamind/backend/models"
+	"github.com/oleamind/backend/utils"
 	"gorm.io/gorm"
 )
 
 func CreateParcel(c *gin.Context) {
+	user, _ := c.Get("user")
+	u := user.(models.User)
+
 	var parcel models.Parcel
 	if err := c.BindJSON(&parcel); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Ensure FarmID is set (omitted auth check for brevity, but should come from token)
-	// For MVP, we assume FarmID is passed in body or we set it to 1
+	// FarmID is required
 	if parcel.FarmID == 0 {
-		parcel.FarmID = 1 // Default farm
+		c.JSON(http.StatusBadRequest, gin.H{"error": "FarmID is required"})
+		return
+	}
+
+	// Verify user has access to this farm
+	accessibleFarms := utils.GetUserAccessibleFarms(u.ID)
+	hasAccess := false
+	for _, fid := range accessibleFarms {
+		if fid == parcel.FarmID {
+			hasAccess = true
+			break
+		}
+	}
+
+	if !hasAccess {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have access to this farm"})
+		return
 	}
 
 	result := initializers.DB.Create(&parcel)
@@ -36,12 +55,15 @@ func CreateParcel(c *gin.Context) {
 		err := initializers.DB.Raw(`
 			SELECT ST_Area(ST_GeomFromGeoJSON(?::text)::geography) / 10000.0 as area
 		`, string(parcel.GeoJSON)).Scan(&areaInHectares).Error
-		
+
 		if err == nil {
 			parcel.Area = areaInHectares
 			initializers.DB.Model(&parcel).Update("area", areaInHectares)
 		} else {
-			log.Printf("⚠️  Failed to calculate area for parcel %d: %v", parcel.ID, err)
+			slog.Warn("Failed to calculate area for parcel",
+				"parcel_id", parcel.ID,
+				"error", err,
+			)
 		}
 	}
 
@@ -54,14 +76,24 @@ func CreateParcel(c *gin.Context) {
 }
 
 func GetParcels(c *gin.Context) {
+	user, _ := c.Get("user")
+	u := user.(models.User)
+
+	// Get user's accessible farms
+	accessibleFarms := utils.GetUserAccessibleFarms(u.ID)
+
+	if len(accessibleFarms) == 0 {
+		c.JSON(http.StatusOK, []models.Parcel{}) // Empty array
+		return
+	}
+
 	var parcels []models.Parcel
-	// We must select geo_json as GeoJSON string for our custom scanner to work with ST_AsGeoJSON
-	// Note: GORM default column name for GeoJSON field is 'geo_json' (snake_case)
-	// Preload Varieties with their GeoJSON converted
+	// Filter parcels by user's accessible farms
 	result := initializers.DB.Preload("Varieties", func(db *gorm.DB) *gorm.DB {
 		return db.Select("*, ST_AsGeoJSON(geo_json) as geo_json")
-	}).Select("id, created_at, updated_at, deleted_at, name, farm_id, area, trees_count, ST_AsGeoJSON(geo_json) as geo_json").Find(&parcels)
-	
+	}).Select("id, created_at, updated_at, deleted_at, name, farm_id, area, trees_count, ST_AsGeoJSON(geo_json) as geo_json").
+		Where("farm_id IN ?", accessibleFarms).Find(&parcels)
+
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
 		return
@@ -71,6 +103,9 @@ func GetParcels(c *gin.Context) {
 }
 
 func UpdateParcel(c *gin.Context) {
+	user, _ := c.Get("user")
+	u := user.(models.User)
+
 	id := c.Param("id")
 	var parcel models.Parcel
 
@@ -82,6 +117,21 @@ func UpdateParcel(c *gin.Context) {
 		return
 	}
 
+	// Verify user has access to this parcel's farm
+	accessibleFarms := utils.GetUserAccessibleFarms(u.ID)
+	hasAccess := false
+	for _, fid := range accessibleFarms {
+		if fid == parcel.FarmID {
+			hasAccess = true
+			break
+		}
+	}
+
+	if !hasAccess {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have access to this parcel"})
+		return
+	}
+
 	var input models.Parcel
 	if err := c.BindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -89,9 +139,14 @@ func UpdateParcel(c *gin.Context) {
 	}
 
 	// Debug logging
-	log.Printf("📥 UpdateParcel received %d varieties", len(input.Varieties))
+	slog.Info("UpdateParcel received varieties", "count", len(input.Varieties))
 	for i, v := range input.Varieties {
-		log.Printf("  Variety %d: %s, TreeCount: %d, GeoJSON length: %d", i, v.Cultivar, v.TreeCount, len(v.GeoJSON))
+		slog.Info("Variety details",
+			"index", i,
+			"cultivar", v.Cultivar,
+			"tree_count", v.TreeCount,
+			"geojson_len", len(v.GeoJSON),
+		)
 	}
 
 	// Recalculate area from geometry if geometry was updated
@@ -101,12 +156,15 @@ func UpdateParcel(c *gin.Context) {
 		err := initializers.DB.Raw(`
 			SELECT ST_Area(ST_GeomFromGeoJSON(?::text)::geography) / 10000.0 as area
 		`, string(input.GeoJSON)).Scan(&areaInHectares).Error
-		
+
 		if err == nil {
 			input.Area = areaInHectares
-			log.Printf("📐 Calculated area from geometry: %.2f ha", areaInHectares)
+			slog.Info("Calculated area from geometry", "area_ha", areaInHectares)
 		} else {
-			log.Printf("⚠️  Failed to calculate area for parcel %s: %v", id, err)
+			slog.Warn("Failed to calculate area for parcel",
+				"parcel_id", id,
+				"error", err,
+			)
 		}
 	}
 
@@ -133,7 +191,10 @@ func UpdateParcel(c *gin.Context) {
 		// Ensure ParcelID is set (Replace does this, but good to be sure for Save)
 		v.ParcelID = parcel.ID
 		if err := initializers.DB.Save(&v).Error; err != nil {
-			log.Printf("Error saving variety %d: %v", v.ID, err)
+			slog.Error("Error saving variety",
+				"variety_id", v.ID,
+				"error", err,
+			)
 		}
 	}
 
@@ -146,16 +207,32 @@ func UpdateParcel(c *gin.Context) {
 }
 
 func DeleteParcel(c *gin.Context) {
+	user, _ := c.Get("user")
+	u := user.(models.User)
+
 	id := c.Param("id")
 	var parcel models.Parcel
 
-	// We don't strictly need GeoJSON for delete, but consistent loading is good
-	if err := initializers.DB.Select("id").First(&parcel, id).Error; err != nil {
+	if err := initializers.DB.Select("id, farm_id").First(&parcel, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Parcel not found"})
+		return
+	}
+
+	// Verify user has access to this parcel's farm
+	accessibleFarms := utils.GetUserAccessibleFarms(u.ID)
+	hasAccess := false
+	for _, fid := range accessibleFarms {
+		if fid == parcel.FarmID {
+			hasAccess = true
+			break
+		}
+	}
+
+	if !hasAccess {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have access to this parcel"})
 		return
 	}
 
 	initializers.DB.Delete(&parcel)
 	c.JSON(http.StatusOK, gin.H{"message": "Parcel deleted"})
 }
-

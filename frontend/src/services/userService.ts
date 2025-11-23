@@ -5,12 +5,17 @@ export interface User {
     email: string
     firstName: string
     lastName: string
-    role: 'owner' | 'agronomist' | 'mill_operator' | 'viewer'
+    role?: 'owner' | 'agronomist' | 'mill_operator' | 'viewer' // Optional - computed from farms array
     farmId?: number
     farm?: {
         id: number
         name: string
     }
+    farms?: Array<{
+        id: number
+        name: string
+        role: string
+    }>
     emailVerified: boolean
     active: boolean
     lastLogin?: string

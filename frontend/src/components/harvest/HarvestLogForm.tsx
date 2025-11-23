@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Save, X, Loader2 } from 'lucide-react'
 import { harvestService, type HarvestLog } from '../../services/harvestService'
-import { API_URL } from '../../config'
+import { apiCall } from '../../config'
 
 interface HarvestLogFormProps {
     onSuccess: () => void
@@ -42,7 +42,10 @@ export function HarvestLogForm({ onSuccess, onCancel, initialData }: HarvestLogF
 
     const fetchParcels = async () => {
         try {
-            const response = await fetch(`${API_URL}/parcels`)
+            const response = await apiCall('/parcels')
+            if (!response.ok) {
+                throw new Error('Failed to fetch parcels')
+            }
             const data = await response.json()
             setParcels(data)
             // Set default parcel if none selected and parcels exist

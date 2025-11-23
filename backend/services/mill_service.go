@@ -23,11 +23,11 @@ func (s *MillService) CreateMill(mill *models.Mill) error {
 func (s *MillService) GetMills(activeOnly bool) ([]models.Mill, error) {
 	var mills []models.Mill
 	query := initializers.DB.Order("name ASC")
-	
+
 	if activeOnly {
 		query = query.Where("active = ?", true)
 	}
-	
+
 	err := query.Find(&mills).Error
 	return mills, err
 }
@@ -54,24 +54,24 @@ func (s *MillService) CreateDelivery(delivery *models.OliveDelivery) error {
 
 func (s *MillService) GetDeliveries(millID *uint, parcelID *uint, startDate, endDate time.Time) ([]models.OliveDelivery, error) {
 	var deliveries []models.OliveDelivery
-	
+
 	query := initializers.DB.Preload("Mill").
 		Preload("Parcel", func(db *gorm.DB) *gorm.DB {
 			return db.Select("id, name, area, trees_count, farm_id, created_at, updated_at")
 		}).
-		Where("delivery_date >= ? AND delivery_date <= ?", 
-			models.DateOnly{Time: startDate}, 
+		Where("delivery_date >= ? AND delivery_date <= ?",
+			models.DateOnly{Time: startDate},
 			models.DateOnly{Time: endDate}).
 		Order("delivery_date DESC")
-	
+
 	if millID != nil {
 		query = query.Where("mill_id = ?", *millID)
 	}
-	
+
 	if parcelID != nil {
 		query = query.Where("parcel_id = ?", *parcelID)
 	}
-	
+
 	err := query.Find(&deliveries).Error
 	return deliveries, err
 }
@@ -119,6 +119,14 @@ func (s *MillService) CreateOilBatch(batch *models.OilBatch, sourceDeliveryIDs [
 			delivery.ProcessedDate = &models.DateOnly{Time: batch.ProductionDate.Time}
 			initializers.DB.Save(&delivery)
 		}
+
+		// Calculate yield percentage: (oil_kg / olives_kg) * 100
+		// Olive oil density is approximately 0.92 kg/L
+		if totalOlives > 0 {
+			oilKg := batch.QuantityLiters * 0.92
+			batch.YieldPercentage = (oilKg / totalOlives) * 100
+			initializers.DB.Save(batch)
+		}
 	}
 
 	return nil
@@ -127,15 +135,15 @@ func (s *MillService) CreateOilBatch(batch *models.OilBatch, sourceDeliveryIDs [
 func (s *MillService) GetOilBatches(millID *uint, status string) ([]models.OilBatch, error) {
 	var batches []models.OilBatch
 	query := initializers.DB.Preload("Mill").Order("production_date DESC")
-	
+
 	if millID != nil {
 		query = query.Where("mill_id = ?", *millID)
 	}
-	
+
 	if status != "" {
 		query = query.Where("status = ?", status)
 	}
-	
+
 	err := query.Find(&batches).Error
 	return batches, err
 }
@@ -170,9 +178,9 @@ func (s *MillService) GetBatchTraceability(batchID uint) (map[string]interface{}
 
 	// Build traceability map
 	traceability := map[string]interface{}{
-		"batch":          batch,
-		"sources":        sources,
-		"parcel_count":   len(getUniqueParcels(sources)),
+		"batch":           batch,
+		"sources":         sources,
+		"parcel_count":    len(getUniqueParcels(sources)),
 		"total_olives_kg": getTotalOlivesKg(sources),
 	}
 
@@ -262,11 +270,11 @@ func (s *MillService) CreateBottling(bottling *models.OilBottling) error {
 func (s *MillService) GetBottlings(batchID uint) ([]models.OilBottling, error) {
 	var bottlings []models.OilBottling
 	query := initializers.DB.Preload("OilBatch").Order("bottling_date DESC")
-	
+
 	if batchID > 0 {
 		query = query.Where("oil_batch_id = ?", batchID)
 	}
-	
+
 	err := query.Find(&bottlings).Error
 	return bottlings, err
 }
@@ -280,7 +288,7 @@ func (s *MillService) CreateSale(sale *models.OilSale) error {
 	}
 
 	// Check if batch is fully sold
-	if sale.OilBatchID > 0 {
+	if sale.OilBatchID != nil && *sale.OilBatchID > 0 {
 		var totalSold float64
 		initializers.DB.Model(&models.OilSale{}).
 			Where("oil_batch_id = ?", sale.OilBatchID).
@@ -288,7 +296,7 @@ func (s *MillService) CreateSale(sale *models.OilSale) error {
 			Scan(&totalSold)
 
 		var batch models.OilBatch
-		if err := initializers.DB.First(&batch, sale.OilBatchID).Error; err == nil {
+		if err := initializers.DB.First(&batch, *sale.OilBatchID).Error; err == nil {
 			if totalSold >= batch.QuantityLiters {
 				batch.Status = "sold"
 				initializers.DB.Save(&batch)
@@ -301,18 +309,18 @@ func (s *MillService) CreateSale(sale *models.OilSale) error {
 
 func (s *MillService) GetSales(startDate, endDate time.Time, batchID *uint) ([]models.OilSale, error) {
 	var sales []models.OilSale
-	
+
 	query := initializers.DB.Preload("OilBatch").
 		Preload("Bottling").
 		Where("sale_date >= ? AND sale_date <= ?",
 			models.DateOnly{Time: startDate},
 			models.DateOnly{Time: endDate}).
 		Order("sale_date DESC")
-	
+
 	if batchID != nil {
 		query = query.Where("oil_batch_id = ?", *batchID)
 	}
-	
+
 	err := query.Find(&sales).Error
 	return sales, err
 }
@@ -331,11 +339,11 @@ func (s *MillService) GetProductionStats(millID uint, year int) (map[string]inte
 	query := initializers.DB.Where("production_date >= ? AND production_date <= ?",
 		models.DateOnly{Time: startDate},
 		models.DateOnly{Time: endDate})
-	
+
 	if millID > 0 {
 		query = query.Where("mill_id = ?", millID)
 	}
-	
+
 	if err := query.Find(&batches).Error; err != nil {
 		return nil, err
 	}
@@ -372,4 +380,3 @@ func (s *MillService) GetProductionStats(millID uint, year int) (map[string]inte
 
 	return stats, nil
 }
-

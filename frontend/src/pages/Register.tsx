@@ -12,6 +12,8 @@ export default function Register() {
         confirmPassword: '',
         firstName: '',
         lastName: '',
+        farmName: '',
+        farmAddress: '',
     })
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
@@ -28,6 +30,11 @@ export default function Register() {
         setError('')
 
         // Validation
+        if (!formData.farmName.trim()) {
+            setError('Farm name is required')
+            return
+        }
+
         if (formData.password !== formData.confirmPassword) {
             setError('Passwords do not match')
             return
@@ -46,6 +53,8 @@ export default function Register() {
                 password: formData.password,
                 firstName: formData.firstName,
                 lastName: formData.lastName,
+                farmName: formData.farmName,
+                farmAddress: formData.farmAddress || undefined,
             })
             navigate('/dashboard')
         } catch (err: any) {
@@ -131,8 +140,43 @@ export default function Register() {
                                 value={formData.email}
                                 onChange={handleChange}
                                 required
+                                autoComplete="email"
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
                                 placeholder="your@email.com"
+                                disabled={loading}
+                            />
+                        </div>
+
+                        <div>
+                            <label htmlFor="farmName" className="block text-sm font-medium text-gray-700 mb-2">
+                                Farm Name <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                                id="farmName"
+                                name="farmName"
+                                type="text"
+                                value={formData.farmName}
+                                onChange={handleChange}
+                                required
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
+                                placeholder="My Olive Farm"
+                                disabled={loading}
+                            />
+                            <p className="text-xs text-gray-500 mt-1">The name of your farm or business</p>
+                        </div>
+
+                        <div>
+                            <label htmlFor="farmAddress" className="block text-sm font-medium text-gray-700 mb-2">
+                                Farm Address
+                            </label>
+                            <input
+                                id="farmAddress"
+                                name="farmAddress"
+                                type="text"
+                                value={formData.farmAddress}
+                                onChange={handleChange}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
+                                placeholder="123 Farm Road, City, Country"
                                 disabled={loading}
                             />
                         </div>
@@ -149,6 +193,7 @@ export default function Register() {
                                 onChange={handleChange}
                                 required
                                 minLength={8}
+                                autoComplete="new-password"
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
                                 placeholder="••••••••"
                                 disabled={loading}
@@ -167,6 +212,7 @@ export default function Register() {
                                 value={formData.confirmPassword}
                                 onChange={handleChange}
                                 required
+                                autoComplete="new-password"
                                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition"
                                 placeholder="••••••••"
                                 disabled={loading}

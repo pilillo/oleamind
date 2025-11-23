@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { userService, type User, type CreateUserData, type UpdateUserData } from '../services/userService'
+import { useAuth } from '../contexts/AuthContext'
 import { UserPlus, Edit2, CheckCircle, XCircle, Loader2, Search } from 'lucide-react'
 
 export default function Users() {
@@ -161,9 +162,15 @@ export default function Users() {
                                     </div>
                                 </td>
                                 <td className="px-6 py-4">
-                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRoleBadgeColor(user.role)}`}>
-                                        {user.role.replace('_', ' ')}
-                                    </span>
+                                    {(() => {
+                                        // Get role from farms array or fallback to role field
+                                        const userRole = user.farms?.[0]?.role || user.role || 'viewer'
+                                        return (
+                                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRoleBadgeColor(userRole)}`}>
+                                                {userRole.replace('_', ' ')}
+                                            </span>
+                                        )
+                                    })()}
                                 </td>
                                 <td className="px-6 py-4">
                                     <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full ${user.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
@@ -236,23 +243,54 @@ interface UserModalProps {
 }
 
 function UserModal({ user, onClose, onSave }: UserModalProps) {
+    const { user: currentUser } = useAuth()
+    
+    // Get farms where current user is owner
+    const ownedFarms = currentUser?.farms?.filter(f => f.role === 'owner') || []
+    
+    // Get farmId from user - could be from farmId field or farm.id
+    const getUserFarmId = () => {
+        if (user?.farmId) return user.farmId
+        if (user?.farm?.id) return user.farm.id
+        return ownedFarms.length > 0 ? ownedFarms[0].id : 0
+    }
+
+    // Get role from farms array or fallback to role field
+    const getUserRole = () => {
+        if (user?.farms && user.farms.length > 0) {
+            const role = user.farms[0].role
+            return (role === 'owner' ? 'viewer' : (role as 'agronomist' | 'mill_operator' | 'viewer')) || 'viewer'
+        }
+        const role = user?.role || 'viewer'
+        return (role === 'owner' ? 'viewer' : (role as 'agronomist' | 'mill_operator' | 'viewer')) || 'viewer'
+    }
+
     const [formData, setFormData] = useState<{
         email: string
         password: string
         firstName: string
         lastName: string
-        role: 'owner' | 'agronomist' | 'mill_operator' | 'viewer'
+        role: 'agronomist' | 'mill_operator' | 'viewer'
+        farmId: number
     }>({
         email: user?.email || '',
         password: '',
         firstName: user?.firstName || '',
         lastName: user?.lastName || '',
-        role: user?.role || 'viewer',
+        role: getUserRole(),
+        farmId: getUserFarmId(),
     })
     const [loading, setLoading] = useState(false)
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        
+        // Validate farmId
+        if (formData.farmId === 0) {
+            alert('Please select a farm')
+            return
+        }
+        
         setLoading(true)
         try {
             await onSave(formData)
@@ -304,6 +342,32 @@ function UserModal({ user, onClose, onSave }: UserModalProps) {
                         />
                     </div>
 
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Farm <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                            value={formData.farmId}
+                            onChange={(e) => setFormData({ ...formData, farmId: parseInt(e.target.value) })}
+                            required
+                            disabled={!!user}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100"
+                        >
+                            <option value={0}>Select a farm</option>
+                            {ownedFarms.map((farm) => (
+                                <option key={farm.id} value={farm.id}>
+                                    {farm.name}
+                                </option>
+                            ))}
+                        </select>
+                        {ownedFarms.length === 0 && (
+                            <p className="text-xs text-red-500 mt-1">You don't own any farms</p>
+                        )}
+                        {user && (
+                            <p className="text-xs text-gray-500 mt-1">Farm cannot be changed when editing</p>
+                        )}
+                    </div>
+
                     {!user && (
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
@@ -322,15 +386,15 @@ function UserModal({ user, onClose, onSave }: UserModalProps) {
                         <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
                         <select
                             value={formData.role}
-                            onChange={(e) => setFormData({ ...formData, role: e.target.value as 'owner' | 'agronomist' | 'mill_operator' | 'viewer' })}
+                            onChange={(e) => setFormData({ ...formData, role: e.target.value as 'agronomist' | 'mill_operator' | 'viewer' })}
                             required
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                         >
                             <option value="viewer">Viewer</option>
                             <option value="agronomist">Agronomist</option>
                             <option value="mill_operator">Mill Operator</option>
-                            <option value="owner">Owner</option>
                         </select>
+                        <p className="text-xs text-gray-500 mt-1">Note: Only one owner per farm. New users cannot be assigned owner role.</p>
                     </div>
 
                     <div className="flex gap-3 pt-4">

@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/oleamind/backend/initializers"
 	"github.com/oleamind/backend/models"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // setupTestDB initializes a test database connection
@@ -20,7 +20,7 @@ func setupTestDB(t *testing.T) {
 
 	// Initialize DB
 	initializers.ConnectToDB()
-	
+
 	// Auto-migrate required tables
 	initializers.DB.AutoMigrate(
 		&models.User{},
@@ -66,14 +66,14 @@ func TestCalculateRecommendation_Integration(t *testing.T) {
 
 	// Create weather data for the parcel
 	weather := models.WeatherData{
-		ParcelID:     parcel.ID,
-		Temperature:  25.0,
-		Humidity:     60.0,
-		WindSpeed:    5.0,
+		ParcelID:      parcel.ID,
+		Temperature:   25.0,
+		Humidity:      60.0,
+		WindSpeed:     5.0,
 		Precipitation: 0.0,
-		ET0:          5.5,
-		RainNext24h:  0.0,
-		FetchedAt:    time.Now(),
+		ET0:           5.5,
+		RainNext24h:   0.0,
+		FetchedAt:     time.Now(),
 	}
 	require.NoError(t, initializers.DB.Create(&weather).Error)
 
@@ -122,7 +122,7 @@ func TestLogIrrigationEvent(t *testing.T) {
 	service := NewIrrigationService()
 	event := &models.IrrigationEvent{
 		ParcelID:    parcel.ID,
-		Date:        time.Now(),
+		Date:        models.DateOnly{Time: time.Now()},
 		WaterAmount: 25.0,
 		Method:      "drip",
 		Duration:    120,
@@ -156,11 +156,11 @@ func TestGetIrrigationHistory(t *testing.T) {
 	// Log multiple irrigation events
 	service := NewIrrigationService()
 	now := time.Now()
-	
+
 	events := []models.IrrigationEvent{
-		{ParcelID: parcel.ID, Date: now.AddDate(0, 0, -7), WaterAmount: 20.0, Method: "drip"},
-		{ParcelID: parcel.ID, Date: now.AddDate(0, 0, -3), WaterAmount: 25.0, Method: "drip"},
-		{ParcelID: parcel.ID, Date: now, WaterAmount: 30.0, Method: "drip"},
+		{ParcelID: parcel.ID, Date: models.DateOnly{Time: now.AddDate(0, 0, -7)}, WaterAmount: 20.0, Method: "drip"},
+		{ParcelID: parcel.ID, Date: models.DateOnly{Time: now.AddDate(0, 0, -3)}, WaterAmount: 25.0, Method: "drip"},
+		{ParcelID: parcel.ID, Date: models.DateOnly{Time: now}, WaterAmount: 30.0, Method: "drip"},
 	}
 
 	for _, event := range events {
@@ -175,10 +175,10 @@ func TestGetIrrigationHistory(t *testing.T) {
 
 	require.NoError(t, err, "Should retrieve history successfully")
 	assert.Len(t, history, 3, "Should retrieve all 3 events")
-	
+
 	// Verify events are ordered by date (most recent first)
-	assert.True(t, history[0].Date.After(history[1].Date) || history[0].Date.Equal(history[1].Date))
-	assert.True(t, history[1].Date.After(history[2].Date) || history[1].Date.Equal(history[2].Date))
+	assert.True(t, history[0].Date.Time.After(history[1].Date.Time) || history[0].Date.Time.Equal(history[1].Date.Time))
+	assert.True(t, history[1].Date.Time.After(history[2].Date.Time) || history[1].Date.Time.Equal(history[2].Date.Time))
 }
 
 func TestGetWaterUsageStats(t *testing.T) {
@@ -203,11 +203,11 @@ func TestGetWaterUsageStats(t *testing.T) {
 	// Log irrigation events
 	service := NewIrrigationService()
 	now := time.Now()
-	
+
 	events := []models.IrrigationEvent{
-		{ParcelID: parcel.ID, Date: now.AddDate(0, 0, -5), WaterAmount: 20.0, Method: "drip", Duration: 100},
-		{ParcelID: parcel.ID, Date: now.AddDate(0, 0, -3), WaterAmount: 25.0, Method: "drip", Duration: 120},
-		{ParcelID: parcel.ID, Date: now, WaterAmount: 30.0, Method: "drip", Duration: 150},
+		{ParcelID: parcel.ID, Date: models.DateOnly{Time: now.AddDate(0, 0, -5)}, WaterAmount: 20.0, Method: "drip", Duration: 100},
+		{ParcelID: parcel.ID, Date: models.DateOnly{Time: now.AddDate(0, 0, -3)}, WaterAmount: 25.0, Method: "drip", Duration: 120},
+		{ParcelID: parcel.ID, Date: models.DateOnly{Time: now}, WaterAmount: 30.0, Method: "drip", Duration: 150},
 	}
 
 	for _, event := range events {
@@ -222,16 +222,12 @@ func TestGetWaterUsageStats(t *testing.T) {
 
 	require.NoError(t, err, "Should calculate stats successfully")
 	assert.NotNil(t, stats, "Stats should not be nil")
-	assert.Equal(t, 3, stats.TotalEvents, "Should count 3 events")
-	assert.InDelta(t, 75.0, stats.TotalAmountMM, 0.1, "Total amount should be 75mm")
-	assert.InDelta(t, 25.0, stats.AverageAmountMM, 0.1, "Average amount should be 25mm")
-	assert.InDelta(t, 370.0, stats.TotalDurationMin, 0.1, "Total duration should be 370 minutes")
+	assert.Equal(t, 3, stats.IrrigationEvents, "Should count 3 events")
+	assert.InDelta(t, 75.0, stats.TotalWaterApplied, 0.1, "Total amount should be 75mm")
+	assert.InDelta(t, 25.0, stats.AverageWaterPerEvent, 0.1, "Average amount should be 25mm")
 
-	// Calculate expected total volume: 75mm * 1.5 ha * 10000 m²/ha = 1,125,000 L = 1,125 m³
-	assert.InDelta(t, 1125.0, stats.TotalVolumeCubicMeters, 1.0, "Total volume should be ~1125 m³")
-
-	t.Logf("Water usage stats: events=%d, total=%.1fmm, avg=%.1fmm, volume=%.1fm³",
-		stats.TotalEvents, stats.TotalAmountMM, stats.AverageAmountMM, stats.TotalVolumeCubicMeters)
+	t.Logf("Water usage stats: events=%d, total=%.1fmm, avg=%.1fmm",
+		stats.IrrigationEvents, stats.TotalWaterApplied, stats.AverageWaterPerEvent)
 }
 
 func TestCalculateRecommendation_NoWeatherData(t *testing.T) {

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { TrendingUp, Scale, TreeDeciduous, Euro } from 'lucide-react'
 import { harvestService, type YieldStats } from '../../services/harvestService'
-import { API_URL } from '../../config'
+import { apiCall } from '../../config'
 
 export function YieldStatsDashboard() {
     const [stats, setStats] = useState<YieldStats | null>(null)
@@ -22,7 +22,10 @@ export function YieldStatsDashboard() {
 
     const fetchParcels = async () => {
         try {
-            const response = await fetch(`${API_URL}/parcels`)
+            const response = await apiCall('/parcels')
+            if (!response.ok) {
+                throw new Error('Failed to fetch parcels')
+            }
             const data = await response.json()
             setParcels(data)
             if (data.length > 0) {

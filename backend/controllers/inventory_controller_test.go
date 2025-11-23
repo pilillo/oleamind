@@ -13,6 +13,7 @@ import (
 	"github.com/oleamind/backend/initializers"
 	"github.com/oleamind/backend/models"
 	"github.com/stretchr/testify/assert"
+	"gorm.io/gorm"
 )
 
 func setupTestDB(t *testing.T) {
@@ -42,6 +43,10 @@ func TestCreateInventoryItem(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	router := gin.Default()
+	router.Use(func(c *gin.Context) {
+		c.Set("user", models.User{Model: gorm.Model{ID: 1}, FirstName: "Test", LastName: "User"})
+		c.Next()
+	})
 	router.POST("/inventory", CreateInventoryItem)
 
 	t.Run("Create valid inventory item", func(t *testing.T) {
@@ -53,6 +58,7 @@ func TestCreateInventoryItem(t *testing.T) {
 			MinimumStock: 20.0,
 			CostPerUnit:  5.50,
 			Supplier:     "EcoFarm Ltd",
+			FarmID:       1,
 		}
 
 		jsonData, _ := json.Marshal(item)
@@ -63,7 +69,7 @@ func TestCreateInventoryItem(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		
+
 		var response models.InventoryItem
 		json.Unmarshal(w.Body.Bytes(), &response)
 		assert.Equal(t, "Organic Fertilizer", response.Name)
@@ -127,6 +133,10 @@ func TestGetInventory(t *testing.T) {
 	})
 
 	router := gin.Default()
+	router.Use(func(c *gin.Context) {
+		c.Set("user", models.User{Model: gorm.Model{ID: 1}, FirstName: "Test", LastName: "User"})
+		c.Next()
+	})
 	router.GET("/inventory", GetInventory)
 
 	req, _ := http.NewRequest("GET", "/inventory", nil)
@@ -135,7 +145,7 @@ func TestGetInventory(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	
+
 	var items []models.InventoryItem
 	json.Unmarshal(w.Body.Bytes(), &items)
 	assert.Equal(t, 2, len(items))
@@ -157,6 +167,10 @@ func TestUpdateInventoryItem(t *testing.T) {
 	initializers.DB.Create(&item)
 
 	router := gin.Default()
+	router.Use(func(c *gin.Context) {
+		c.Set("user", models.User{Model: gorm.Model{ID: 1}, FirstName: "Test", LastName: "User"})
+		c.Next()
+	})
 	router.PUT("/inventory/:id", UpdateInventoryItem)
 
 	t.Run("Update existing item", func(t *testing.T) {
@@ -175,7 +189,7 @@ func TestUpdateInventoryItem(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		
+
 		var response models.InventoryItem
 		json.Unmarshal(w.Body.Bytes(), &response)
 		assert.Equal(t, "Updated Item", response.Name)
@@ -213,6 +227,10 @@ func TestDeleteInventoryItem(t *testing.T) {
 	initializers.DB.Create(&item)
 
 	router := gin.Default()
+	router.Use(func(c *gin.Context) {
+		c.Set("user", models.User{Model: gorm.Model{ID: 1}, FirstName: "Test", LastName: "User"})
+		c.Next()
+	})
 	router.DELETE("/inventory/:id", DeleteInventoryItem)
 
 	t.Run("Delete existing item", func(t *testing.T) {
@@ -261,6 +279,10 @@ func TestGetLowStock(t *testing.T) {
 	})
 
 	router := gin.Default()
+	router.Use(func(c *gin.Context) {
+		c.Set("user", models.User{Model: gorm.Model{ID: 1}, FirstName: "Test", LastName: "User"})
+		c.Next()
+	})
 	router.GET("/inventory/low-stock", GetLowStock)
 
 	req, _ := http.NewRequest("GET", "/inventory/low-stock", nil)
@@ -269,15 +291,14 @@ func TestGetLowStock(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	
+
 	var items []models.InventoryItem
 	json.Unmarshal(w.Body.Bytes(), &items)
-	
+
 	// Should return 2 items (Low Stock and Critical Stock)
 	assert.Equal(t, 2, len(items))
-	
+
 	// Verify they're sorted by quantity ASC (Critical first)
 	assert.Equal(t, "Critical Stock Item", items[0].Name)
 	assert.Equal(t, "Low Stock Item", items[1].Name)
 }
-
