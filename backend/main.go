@@ -171,6 +171,13 @@ func main() {
 		protected.GET("/yield/predictions/:parcel_id", controllers.GetYieldPredictions)
 		protected.POST("/yield/predict/:parcel_id", controllers.PredictYield)
 
+		// Analytics Routes
+		protected.GET("/analytics/yield-trends/:parcel_id", controllers.GetYieldTrends)
+		protected.GET("/analytics/cost-efficiency", controllers.GetCostEfficiency)
+		protected.GET("/analytics/parcel-comparison", controllers.GetParcelComparison)
+		protected.GET("/analytics/export/parcel-report/:parcel_id", controllers.ExportParcelReportPDF)
+		protected.GET("/analytics/export/comparison-report", controllers.ExportComparisonReportPDF)
+
 		// Mills Management Routes
 		protected.POST("/mills", controllers.CreateMill)
 		protected.GET("/mills", controllers.GetMills)
