@@ -251,6 +251,80 @@
     "success": "Successo",
     "confirm": "Conferma",
     "close": "Chiudi"
+  },
+  "analytics": {
+    "title": "Analisi e Reportistica",
+    "tabs": {
+      "trends": "Trend",
+      "costs": "Costi",
+      "comparison": "Confronto"
+    },
+    "trends": {
+      "title": "Trend Resa Pluriennale",
+      "select_parcel": "Seleziona Parcella",
+      "years": "Anni",
+      "yield_chart_title": "Resa vs Ricavi",
+      "yield_axis": "Resa (kg/ha)",
+      "revenue_axis": "Ricavi (€)",
+      "export_pdf": "Esporta PDF",
+      "summary": {
+        "avg_yield": "Resa Media/Ha",
+        "best_year": "Miglior Anno",
+        "total_harvests": "Raccolti Totali",
+        "avg_price": "Prezzo Medio"
+      }
+    },
+    "costs": {
+      "title": "Analisi Efficienza Costi",
+      "date_range": "Intervallo Date",
+      "start_date": "Data Inizio",
+      "end_date": "Data Fine",
+      "apply": "Applica",
+      "cost_per_liter": "Costo per Litro",
+      "avg_cost": "Costo Medio",
+      "most_efficient": "Più Efficiente",
+      "least_efficient": "Meno Efficiente",
+      "cost_breakdown": "Ripartizione Costi",
+      "operations": "Operazioni",
+      "harvest": "Raccolta",
+      "irrigation": "Irrigazione",
+      "treatments": "Trattamenti",
+      "table": {
+        "parcel": "Parcella",
+        "total_cost": "Costo Totale",
+        "oil_produced": "Olio Prodotto (L)",
+        "cost_l": "Costo/L"
+      }
+    },
+    "comparison": {
+      "title": "Confronto Parcelle",
+      "select_parcels": "Seleziona Parcelle (Max 5)",
+      "select_to_compare": "Seleziona le parcelle sopra per confrontarle",
+      "year": "Anno",
+      "radar_title": "Confronto Prestazioni",
+      "best_performers": "Migliori Prestazioni",
+      "highest_yield": "Resa Maggiore",
+      "best_roi": "Miglior ROI",
+      "lowest_cost": "Costo Minore",
+      "table": {
+        "metric": "Metrica",
+        "area": "Area (ha)",
+        "trees": "Alberi",
+        "yield": "Resa (kg/ha)",
+        "cost": "Costo/Litro",
+        "quality": "Qualità",
+        "water": "Acqua (m³)",
+        "revenue": "Ricavi",
+        "profit": "Profitto Netto",
+        "roi": "ROI (%)"
+      },
+      "export_pdf": "Esporta PDF"
+    },
+    "errors": {
+      "fetch_trends": "Impossibile caricare i trend di resa",
+      "fetch_costs": "Impossibile caricare i dati di efficienza costi",
+      "fetch_comparison": "Impossibile caricare i dati di confronto",
+      "export_pdf": "Impossibile esportare il PDF"
+    }
   }
 }
-

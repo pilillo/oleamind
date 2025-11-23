@@ -251,6 +251,80 @@
     "success": "Success",
     "confirm": "Confirm",
     "close": "Close"
+  },
+  "analytics": {
+    "title": "Analytics & Reporting",
+    "tabs": {
+      "trends": "Trends",
+      "costs": "Costs",
+      "comparison": "Comparison"
+    },
+    "trends": {
+      "title": "Multi-Year Yield Trends",
+      "select_parcel": "Select Parcel",
+      "years": "Years",
+      "yield_chart_title": "Yield vs Revenue",
+      "yield_axis": "Yield (kg/ha)",
+      "revenue_axis": "Revenue (€)",
+      "export_pdf": "Export PDF",
+      "summary": {
+        "avg_yield": "Avg Yield/Ha",
+        "best_year": "Best Year",
+        "total_harvests": "Total Harvests",
+        "avg_price": "Avg Price"
+      }
+    },
+    "costs": {
+      "title": "Cost Efficiency Analysis",
+      "date_range": "Date Range",
+      "start_date": "Start Date",
+      "end_date": "End Date",
+      "apply": "Apply",
+      "cost_per_liter": "Cost per Liter",
+      "avg_cost": "Average Cost",
+      "most_efficient": "Most Efficient",
+      "least_efficient": "Least Efficient",
+      "cost_breakdown": "Cost Breakdown",
+      "operations": "Operations",
+      "harvest": "Harvest",
+      "irrigation": "Irrigation",
+      "treatments": "Treatments",
+      "table": {
+        "parcel": "Parcel",
+        "total_cost": "Total Cost",
+        "oil_produced": "Oil Produced (L)",
+        "cost_l": "Cost/L"
+      }
+    },
+    "comparison": {
+      "title": "Parcel Comparison",
+      "select_parcels": "Select Parcels (Max 5)",
+      "select_to_compare": "Select parcels above to compare",
+      "year": "Year",
+      "radar_title": "Performance Comparison",
+      "best_performers": "Best Performers",
+      "highest_yield": "Highest Yield",
+      "best_roi": "Best ROI",
+      "lowest_cost": "Lowest Cost",
+      "table": {
+        "metric": "Metric",
+        "area": "Area (ha)",
+        "trees": "Trees",
+        "yield": "Yield (kg/ha)",
+        "cost": "Cost/Liter",
+        "quality": "Quality",
+        "water": "Water Usage (m³)",
+        "revenue": "Revenue",
+        "profit": "Net Profit",
+        "roi": "ROI (%)"
+      },
+      "export_pdf": "Export PDF"
+    },
+    "errors": {
+      "fetch_trends": "Failed to load yield trends",
+      "fetch_costs": "Failed to load cost efficiency data",
+      "fetch_comparison": "Failed to load comparison data",
+      "export_pdf": "Failed to export PDF"
+    }
   }
 }
-

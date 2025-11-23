@@ -19,6 +19,7 @@
     "lucide-react": "^0.475.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-hot-toast": "^2.6.0",
     "react-i18next": "^15.2.0",
     "react-leaflet": "^5.0.0",
     "react-leaflet-draw": "^0.21.0",

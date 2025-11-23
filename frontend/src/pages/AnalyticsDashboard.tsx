@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Sprout, FlaskConical, DollarSign, TrendingUp, Euro, GitCompare } from 'lucide-react'
 import { ProductionAnalytics } from '../components/analytics/ProductionAnalytics'
 import { ProcessingAnalytics } from '../components/analytics/ProcessingAnalytics'
@@ -14,6 +15,7 @@ interface Parcel {
 }
 
 export default function AnalyticsDashboard() {
+    const { t } = useTranslation()
     const [activeTab, setActiveTab] = useState<'production' | 'processing' | 'sales' | 'trends' | 'costs' | 'comparison'>('trends')
     const [parcels, setParcels] = useState<Parcel[]>([])
     const [selectedParcelId, setSelectedParcelId] = useState<number | null>(null)
@@ -39,7 +41,7 @@ export default function AnalyticsDashboard() {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Analytics & Reporting</h1>
+                    <h1 className="text-2xl font-bold text-gray-900">{t('analytics.title')}</h1>
                     <p className="text-gray-500">Insights into your production, processing, and sales performance</p>
                 </div>
             </div>
@@ -54,7 +56,7 @@ export default function AnalyticsDashboard() {
                         }`}
                 >
                     <TrendingUp size={16} />
-                    Trends
+                    {t('analytics.tabs.trends')}
                 </button>
                 <button
                     onClick={() => setActiveTab('costs')}
@@ -64,7 +66,7 @@ export default function AnalyticsDashboard() {
                         }`}
                 >
                     <Euro size={16} />
-                    Costs
+                    {t('analytics.tabs.costs')}
                 </button>
                 <button
                     onClick={() => setActiveTab('comparison')}
@@ -74,7 +76,7 @@ export default function AnalyticsDashboard() {
                         }`}
                 >
                     <GitCompare size={16} />
-                    Comparison
+                    {t('analytics.tabs.comparison')}
                 </button>
                 <button
                     onClick={() => setActiveTab('production')}

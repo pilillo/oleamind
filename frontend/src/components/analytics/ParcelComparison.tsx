@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
+import toast from 'react-hot-toast'
 import { BarChart2, Award, TrendingDown, TrendingUp, Download } from 'lucide-react'
-import { BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { LoadingSpinner } from '../common/LoadingSpinner'
+import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { apiCall } from '../../config'
 
 const handleExportComparisonPDF = async (parcelIds: number[], year: number) => {
@@ -31,9 +34,10 @@ const handleExportComparisonPDF = async (parcelIds: number[], year: number) => {
         a.click()
         window.URL.revokeObjectURL(url)
         document.body.removeChild(a)
+        document.body.removeChild(a)
     } catch (error) {
         console.error('Failed to export PDF:', error)
-        alert('Failed to export PDF. Please check the console for details.')
+        toast.error('Failed to export PDF')
     }
 }
 
@@ -53,6 +57,7 @@ interface ParcelComparisonData {
 }
 
 export function ParcelComparison() {
+    const { t } = useTranslation()
     const [parcels, setParcels] = useState<{ ID: number, name: string }[]>([])
     const [selectedParcels, setSelectedParcels] = useState<number[]>([])
     const [comparisonData, setComparisonData] = useState<ParcelComparisonData[]>([])
@@ -93,6 +98,7 @@ export function ParcelComparison() {
             setComparisonData(data)
         } catch (error) {
             console.error('Failed to fetch comparison:', error)
+            toast.error(t('analytics.errors.fetch_comparison'))
         } finally {
             setLoading(false)
         }
@@ -144,7 +150,7 @@ export function ParcelComparison() {
     const colors = ['#16a34a', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6']
 
     if (loading) {
-        return <div className="flex justify-center py-12"><div className="animate-spin h-8 w-8 border-b-2 border-green-600 rounded-full"></div></div>
+        return <LoadingSpinner />
     }
 
     return (
@@ -154,19 +160,19 @@ export function ParcelComparison() {
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
                     <div className="flex items-center gap-2">
                         <BarChart2 className="text-green-600" size={24} />
-                        <h3 className="text-lg font-semibold text-gray-800">Parcel Comparison</h3>
+                        <h3 className="text-lg font-semibold text-gray-800">{t('analytics.comparison.title')}</h3>
                     </div>
                     <div className="flex gap-2 items-center">
                         {selectedParcels.length > 0 && (
                             <button
-                                onClick={() => handleExportComparisonPDF(selectedParcels, year)}
+                                onClick={() => handleExportComparisonPDF(selectedParcels, year).catch(() => toast.error(t('analytics.errors.export_pdf')))}
                                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors mr-2"
                             >
                                 <Download size={16} />
-                                Export PDF
+                                {t('analytics.comparison.export_pdf')}
                             </button>
                         )}
-                        <label className="text-sm text-gray-600">Year:</label>
+                        <label className="text-sm text-gray-600">{t('analytics.comparison.year')}:</label>
                         <input
                             type="number"
                             value={year}
@@ -198,7 +204,7 @@ export function ParcelComparison() {
 
             {comparisonData.length === 0 ? (
                 <div className="text-center py-12">
-                    <p className="text-gray-500">Select parcels above to compare</p>
+                    <p className="text-gray-500">{t('analytics.comparison.select_to_compare')}</p>
                 </div>
             ) : (
                 <>
@@ -214,7 +220,7 @@ export function ParcelComparison() {
                                     <div className="bg-green-50 rounded-xl border border-green-200 p-4">
                                         <div className="flex items-center gap-2 mb-2">
                                             <Award className="text-green-600" size={20} />
-                                            <span className="text-sm text-green-700 font-medium">Highest Yield</span>
+                                            <span className="text-sm text-green-700 font-medium">{t('analytics.comparison.highest_yield')}</span>
                                         </div>
                                         <div className="text-xl font-bold text-green-900">{bestYield.parcel_name}</div>
                                         <div className="text-sm text-green-700">{bestYield.yield_per_hectare.toFixed(0)} kg/ha</div>
@@ -222,7 +228,7 @@ export function ParcelComparison() {
                                     <div className="bg-blue-50 rounded-xl border border-blue-200 p-4">
                                         <div className="flex items-center gap-2 mb-2">
                                             <TrendingUp className="text-blue-600" size={20} />
-                                            <span className="text-sm text-blue-700 font-medium">Best ROI</span>
+                                            <span className="text-sm text-blue-700 font-medium">{t('analytics.comparison.best_roi')}</span>
                                         </div>
                                         <div className="text-xl font-bold text-blue-900">{bestROI.parcel_name}</div>
                                         <div className="text-sm text-blue-700">{bestROI.roi.toFixed(1)}%</div>
@@ -230,7 +236,7 @@ export function ParcelComparison() {
                                     <div className="bg-amber-50 rounded-xl border border-amber-200 p-4">
                                         <div className="flex items-center gap-2 mb-2">
                                             <TrendingDown className="text-amber-600" size={20} />
-                                            <span className="text-sm text-amber-700 font-medium">Lowest Cost</span>
+                                            <span className="text-sm text-amber-700 font-medium">{t('analytics.comparison.lowest_cost')}</span>
                                         </div>
                                         <div className="text-xl font-bold text-amber-900">{bestEfficiency.parcel_name}</div>
                                         <div className="text-sm text-amber-700">€{bestEfficiency.cost_per_liter.toFixed(2)}/L</div>
@@ -242,7 +248,7 @@ export function ParcelComparison() {
 
                     {/* Radar Chart */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <h4 className="text-md font-semibold text-gray-800 mb-4">Performance Comparison</h4>
+                        <h4 className="text-md font-semibold text-gray-800 mb-4">{t('analytics.comparison.radar_title')}</h4>
                         <ResponsiveContainer width="100%" height={400}>
                             <RadarChart data={radarData}>
                                 <PolarGrid />
@@ -270,7 +276,7 @@ export function ParcelComparison() {
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50">
                                     <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Metric</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('analytics.comparison.table.metric')}</th>
                                         {comparisonData.map(parcel => (
                                             <th key={parcel.parcel_id} className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
                                                 {parcel.parcel_name}
@@ -280,39 +286,39 @@ export function ParcelComparison() {
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
                                     <tr className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 text-sm font-medium text-gray-900">Area (ha)</td>
+                                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{t('analytics.comparison.table.area')}</td>
                                         {comparisonData.map(p => <td key={p.parcel_id} className="px-6 py-4 text-sm text-right">{p.area.toFixed(2)}</td>)}
                                     </tr>
                                     <tr className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 text-sm font-medium text-gray-900">Trees</td>
+                                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{t('analytics.comparison.table.trees')}</td>
                                         {comparisonData.map(p => <td key={p.parcel_id} className="px-6 py-4 text-sm text-right">{p.trees_count}</td>)}
                                     </tr>
                                     <tr className="hover:bg-gray-50 bg-green-50">
-                                        <td className="px-6 py-4 text-sm font-medium text-gray-900">Yield (kg/ha)</td>
+                                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{t('analytics.comparison.table.yield')}</td>
                                         {comparisonData.map(p => <td key={p.parcel_id} className="px-6 py-4 text-sm text-right font-semibold text-green-700">{p.yield_per_hectare.toFixed(0)}</td>)}
                                     </tr>
                                     <tr className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 text-sm font-medium text-gray-900">Cost/Liter</td>
+                                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{t('analytics.comparison.table.cost')}</td>
                                         {comparisonData.map(p => <td key={p.parcel_id} className="px-6 py-4 text-sm text-right">€{p.cost_per_liter > 0 ? p.cost_per_liter.toFixed(2) : '-'}</td>)}
                                     </tr>
                                     <tr className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 text-sm font-medium text-gray-900">Quality</td>
+                                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{t('analytics.comparison.table.quality')}</td>
                                         {comparisonData.map(p => <td key={p.parcel_id} className="px-6 py-4 text-sm text-right capitalize">{p.average_quality || '-'}</td>)}
                                     </tr>
                                     <tr className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 text-sm font-medium text-gray-900">Water Usage (m³)</td>
+                                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{t('analytics.comparison.table.water')}</td>
                                         {comparisonData.map(p => <td key={p.parcel_id} className="px-6 py-4 text-sm text-right">{p.water_usage_m3.toFixed(0)}</td>)}
                                     </tr>
                                     <tr className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 text-sm font-medium text-gray-900">Revenue</td>
+                                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{t('analytics.comparison.table.revenue')}</td>
                                         {comparisonData.map(p => <td key={p.parcel_id} className="px-6 py-4 text-sm text-right">€{p.total_revenue.toFixed(0)}</td>)}
                                     </tr>
                                     <tr className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 text-sm font-medium text-gray-900">Net Profit</td>
+                                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{t('analytics.comparison.table.profit')}</td>
                                         {comparisonData.map(p => <td key={p.parcel_id} className={`px-6 py-4 text-sm text-right font-semibold ${p.net_profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>€{p.net_profit.toFixed(0)}</td>)}
                                     </tr>
                                     <tr className="hover:bg-gray-50 bg-blue-50">
-                                        <td className="px-6 py-4 text-sm font-medium text-gray-900">ROI (%)</td>
+                                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{t('analytics.comparison.table.roi')}</td>
                                         {comparisonData.map(p => <td key={p.parcel_id} className="px-6 py-4 text-sm text-right font-semibold text-blue-700">{p.roi > 0 ? p.roi.toFixed(1) : '-'}%</td>)}
                                     </tr>
                                 </tbody>

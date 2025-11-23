@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
+import toast from 'react-hot-toast'
 import { TrendingUp, BarChart3, Download } from 'lucide-react'
+import { LoadingSpinner } from '../common/LoadingSpinner'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { apiCall } from '../../config'
 
@@ -31,9 +34,10 @@ const handleExportPDF = async (parcelId: number) => {
         a.click()
         window.URL.revokeObjectURL(url)
         document.body.removeChild(a)
+        document.body.removeChild(a)
     } catch (error) {
         console.error('Failed to export PDF:', error)
-        alert('Failed to export PDF. Please check the console for details.')
+        toast.error('Failed to export PDF')
     }
 }
 
@@ -54,6 +58,7 @@ interface YieldTrendChartProps {
 }
 
 export function YieldTrendChart({ parcelId, years = 5 }: YieldTrendChartProps) {
+    const { t } = useTranslation()
     const [trends, setTrends] = useState<YieldTrendData[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -73,17 +78,14 @@ export function YieldTrendChart({ parcelId, years = 5 }: YieldTrendChartProps) {
         } catch (err) {
             console.error('Failed to fetch yield trends:', err)
             setError('Failed to load yield trends')
+            toast.error(t('analytics.errors.fetch_trends'))
         } finally {
             setLoading(false)
         }
     }
 
     if (loading) {
-        return (
-            <div className="flex justify-center items-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-            </div>
-        )
+        return <LoadingSpinner />
     }
 
     if (error) {
@@ -118,15 +120,15 @@ export function YieldTrendChart({ parcelId, years = 5 }: YieldTrendChartProps) {
                 <div className="flex items-center gap-2">
                     <TrendingUp className="text-green-600" size={24} />
                     <h3 className="text-lg font-semibold text-gray-800">
-                        {years}-Year Yield Trends
+                        {t('analytics.trends.title')}
                     </h3>
                 </div>
                 <button
-                    onClick={() => handleExportPDF(parcelId)}
+                    onClick={() => handleExportPDF(parcelId).catch(() => toast.error(t('analytics.errors.export_pdf')))}
                     className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                 >
                     <Download size={16} />
-                    Export PDF
+                    {t('analytics.trends.export_pdf')}
                 </button>
             </div>
 
@@ -142,12 +144,12 @@ export function YieldTrendChart({ parcelId, years = 5 }: YieldTrendChartProps) {
                         <YAxis
                             yAxisId="left"
                             domain={[Math.floor(minYield * 0.9), Math.ceil(maxYield * 1.1)]}
-                            label={{ value: 'Yield (kg/ha)', angle: -90, position: 'insideLeft' }}
+                            label={{ value: t('analytics.trends.yield_axis'), angle: -90, position: 'insideLeft' }}
                         />
                         <YAxis
                             yAxisId="right"
                             orientation="right"
-                            label={{ value: 'Revenue (€)', angle: 90, position: 'insideRight' }}
+                            label={{ value: t('analytics.trends.revenue_axis'), angle: 90, position: 'insideRight' }}
                         />
                         <Tooltip
                             formatter={(value: number, name: string) => {
@@ -163,7 +165,7 @@ export function YieldTrendChart({ parcelId, years = 5 }: YieldTrendChartProps) {
                             dataKey="yield_per_hectare"
                             stroke="#16a34a"
                             strokeWidth={2}
-                            name="Yield/Ha"
+                            name={t('analytics.trends.yield_axis')}
                             dot={{ fill: '#16a34a', r: 5 }}
                         />
                         <Line
@@ -172,7 +174,7 @@ export function YieldTrendChart({ parcelId, years = 5 }: YieldTrendChartProps) {
                             dataKey="total_revenue"
                             stroke="#3b82f6"
                             strokeWidth={2}
-                            name="Revenue"
+                            name={t('analytics.trends.revenue_axis')}
                             dot={{ fill: '#3b82f6', r: 5 }}
                         />
                     </LineChart>
@@ -182,26 +184,26 @@ export function YieldTrendChart({ parcelId, years = 5 }: YieldTrendChartProps) {
             {/* Summary Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="text-xs text-gray-500 mb-1">Avg Yield/Ha</div>
+                    <div className="text-xs text-gray-500 mb-1">{t('analytics.trends.summary.avg_yield')}</div>
                     <div className="text-2xl font-bold text-gray-900">
                         {(trends.reduce((sum, t) => sum + t.yield_per_hectare, 0) / trends.length).toFixed(0)}
                         <span className="text-sm font-normal text-gray-500 ml-1">kg/ha</span>
                     </div>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="text-xs text-gray-500 mb-1">Best Year</div>
+                    <div className="text-xs text-gray-500 mb-1">{t('analytics.trends.summary.best_year')}</div>
                     <div className="text-2xl font-bold text-green-600">
                         {trends.reduce((best, t) => t.yield_per_hectare > best.yield_per_hectare ? t : best).year}
                     </div>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="text-xs text-gray-500 mb-1">Total Harvests</div>
+                    <div className="text-xs text-gray-500 mb-1">{t('analytics.trends.summary.total_harvests')}</div>
                     <div className="text-2xl font-bold text-gray-900">
                         {trends.reduce((sum, t) => sum + t.harvest_count, 0)}
                     </div>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="text-xs text-gray-500 mb-1">Avg Price</div>
+                    <div className="text-xs text-gray-500 mb-1">{t('analytics.trends.summary.avg_price')}</div>
                     <div className="text-2xl font-bold text-gray-900">
                         €{(trends.reduce((sum, t) => sum + t.average_price_per_kg, 0) / trends.filter(t => t.average_price_per_kg > 0).length || 0).toFixed(2)}
                         <span className="text-sm font-normal text-gray-500 ml-1">/kg</span>

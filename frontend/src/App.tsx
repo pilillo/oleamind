@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
 import { LayoutDashboard, Map, Package, ClipboardList, LogOut, User, Globe, Building2, BarChart2, Users as UsersIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Dashboard from './pages/Dashboard'
@@ -192,6 +193,7 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <Toaster position="top-right" />
         <Layout>
           <AppRoutes />
         </Layout>

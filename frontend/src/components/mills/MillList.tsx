@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { Building2, Edit, Trash2, CheckCircle, XCircle, MapPin, Phone, Mail, Award } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Building2, Edit, Trash2, MapPin, Phone, Mail, Award } from 'lucide-react'
 import { millService, type Mill } from '../../services/millService'
 
 interface MillListProps {
@@ -88,9 +88,8 @@ export function MillList({ refreshTrigger, onEdit }: MillListProps) {
                 {mills.map((mill) => (
                     <div
                         key={mill.ID}
-                        className={`bg-white rounded-xl shadow-sm border p-6 transition-all hover:shadow-md ${
-                            mill.active ? 'border-gray-200' : 'border-gray-300 bg-gray-50'
-                        }`}
+                        className={`bg-white rounded-xl shadow-sm border p-6 transition-all hover:shadow-md ${mill.active ? 'border-gray-200' : 'border-gray-300 bg-gray-50'
+                            }`}
                     >
                         <div className="flex justify-between items-start mb-4">
                             <div className="flex items-center gap-3">
@@ -107,11 +106,10 @@ export function MillList({ refreshTrigger, onEdit }: MillListProps) {
                                         {mill.capacity && mill.capacity > 0 && (
                                             <span>{mill.capacity} kg/h</span>
                                         )}
-                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                            mill.active
+                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${mill.active
                                                 ? 'bg-green-100 text-green-700'
                                                 : 'bg-gray-100 text-gray-600'
-                                        }`}>
+                                            }`}>
                                             {mill.active ? 'Active' : 'Inactive'}
                                         </span>
                                     </div>

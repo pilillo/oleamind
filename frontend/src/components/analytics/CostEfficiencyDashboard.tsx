@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
+import toast from 'react-hot-toast'
 import { DollarSign, TrendingDown, TrendingUp, Euro } from 'lucide-react'
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { LoadingSpinner } from '../common/LoadingSpinner'
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { apiCall } from '../../config'
 
 interface CostEfficiencyData {
@@ -20,6 +23,7 @@ interface CostEfficiencyData {
 }
 
 export function CostEfficiencyDashboard() {
+    const { t } = useTranslation()
     const [data, setData] = useState<CostEfficiencyData[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -42,17 +46,14 @@ export function CostEfficiencyDashboard() {
         } catch (err) {
             console.error('Failed to fetch cost efficiency:', err)
             setError('Failed to load cost efficiency data')
+            toast.error(t('analytics.errors.fetch_costs'))
         } finally {
             setLoading(false)
         }
     }
 
     if (loading) {
-        return (
-            <div className="flex justify-center items-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-            </div>
-        )
+        return <LoadingSpinner />
     }
 
     if (error) {
@@ -82,9 +83,9 @@ export function CostEfficiencyDashboard() {
     }), { operations: 0, harvest: 0, irrigation: 0 })
 
     const pieData = [
-        { name: 'Operations', value: totalBreakdown.operations, color: '#3b82f6' },
-        { name: 'Harvest', value: totalBreakdown.harvest, color: '#10b981' },
-        { name: 'Irrigation', value: totalBreakdown.irrigation, color: '#6366f1' }
+        { name: t('analytics.costs.operations'), value: totalBreakdown.operations, color: '#3b82f6' },
+        { name: t('analytics.costs.harvest'), value: totalBreakdown.harvest, color: '#10b981' },
+        { name: t('analytics.costs.irrigation'), value: totalBreakdown.irrigation, color: '#6366f1' }
     ].filter(item => item.value > 0)
 
     // Find most/least efficient
@@ -98,7 +99,7 @@ export function CostEfficiencyDashboard() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div className="flex items-center gap-2">
                     <Euro className="text-green-600" size={24} />
-                    <h3 className="text-lg font-semibold text-gray-800">Cost Efficiency Analysis</h3>
+                    <h3 className="text-lg font-semibold text-gray-800">{t('analytics.costs.title')}</h3>
                 </div>
                 <div className="flex gap-2">
                     <input
@@ -122,7 +123,7 @@ export function CostEfficiencyDashboard() {
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                     <div className="flex items-center gap-3 mb-2">
                         <TrendingUp className="text-green-600" size={20} />
-                        <span className="text-sm text-gray-500">Most Efficient</span>
+                        <span className="text-sm text-gray-500">{t('analytics.costs.most_efficient')}</span>
                     </div>
                     <div className="text-2xl font-bold text-green-600">
                         €{mostEfficient.cost_per_liter.toFixed(2)}/L
@@ -132,7 +133,7 @@ export function CostEfficiencyDashboard() {
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                     <div className="flex items-center gap-3 mb-2">
                         <TrendingDown className="text-red-600" size={20} />
-                        <span className="text-sm text-gray-500">Least Efficient</span>
+                        <span className="text-sm text-gray-500">{t('analytics.costs.least_efficient')}</span>
                     </div>
                     <div className="text-2xl font-bold text-red-600">
                         €{leastEfficient.cost_per_liter.toFixed(2)}/L
@@ -142,7 +143,7 @@ export function CostEfficiencyDashboard() {
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                     <div className="flex items-center gap-3 mb-2">
                         <DollarSign className="text-blue-600" size={20} />
-                        <span className="text-sm text-gray-500">Average Cost/Liter</span>
+                        <span className="text-sm text-gray-500">{t('analytics.costs.avg_cost')}</span>
                     </div>
                     <div className="text-2xl font-bold text-blue-600">
                         €{(data.reduce((sum, d) => sum + d.cost_per_liter, 0) / data.length).toFixed(2)}/L
@@ -155,7 +156,7 @@ export function CostEfficiencyDashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Bar Chart: Cost per Liter by Parcel */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <h4 className="text-md font-semibold text-gray-800 mb-4">Cost per Liter by Parcel</h4>
+                    <h4 className="text-md font-semibold text-gray-800 mb-4">{t('analytics.costs.cost_per_liter')}</h4>
                     <ResponsiveContainer width="100%" height={300}>
                         <BarChart data={data}>
                             <CartesianGrid strokeDasharray="3 3" />
@@ -171,7 +172,7 @@ export function CostEfficiencyDashboard() {
 
                 {/* Pie Chart: Cost Breakdown */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <h4 className="text-md font-semibold text-gray-800 mb-4">Total Cost Breakdown</h4>
+                    <h4 className="text-md font-semibold text-gray-800 mb-4">{t('analytics.costs.cost_breakdown')}</h4>
                     <ResponsiveContainer width="100%" height={300}>
                         <PieChart>
                             <Pie
@@ -179,7 +180,7 @@ export function CostEfficiencyDashboard() {
                                 cx="50%"
                                 cy="50%"
                                 labelLine={false}
-                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                                label={({ name, percent }) => `${name}: ${((percent || 0) * 100).toFixed(0)}%`}
                                 outerRadius={100}
                                 fill="#8884d8"
                                 dataKey="value"
@@ -200,13 +201,13 @@ export function CostEfficiencyDashboard() {
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                             <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Parcel</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Oil (L)</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Cost</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">€/Liter</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Operations</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Harvest</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Irrigation</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('analytics.costs.table.parcel')}</th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('analytics.costs.table.oil_produced')}</th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('analytics.costs.table.total_cost')}</th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('analytics.costs.table.cost_l')}</th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('analytics.costs.operations')}</th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('analytics.costs.harvest')}</th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('analytics.costs.irrigation')}</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">

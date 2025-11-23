@@ -30,9 +30,8 @@ interface Operation {
   ID: number
   type: string
   status: string
-  Date: string
-  ParcelID: number
-  date?: string
+  date: string
+  parcel_id: number
   CreatedAt?: string
 }
 
@@ -184,8 +183,8 @@ function Dashboard() {
   // Recent operations (last 5, sorted by date)
   const recentOperations = [...operations]
     .sort((a, b) => {
-      const dateA = new Date(a.Date || a.date || a.CreatedAt || 0).getTime()
-      const dateB = new Date(b.Date || b.date || b.CreatedAt || 0).getTime()
+      const dateA = new Date(a.date || a.CreatedAt || 0).getTime()
+      const dateB = new Date(b.date || b.CreatedAt || 0).getTime()
       return dateB - dateA
     })
     .slice(0, 5)
@@ -359,14 +358,14 @@ function Dashboard() {
           {recentOperations.length > 0 ? (
             <div className="space-y-6">
               {recentOperations.map((op, idx) => {
-                const parcelName = parcels.find(p => p.ID === op.ParcelID)?.name || `Parcel #${op.ParcelID}`
+                const parcelName = parcels.find(p => p.ID === op.parcel_id)?.name || `Parcel #${op.parcel_id}`
                 const isLast = idx === recentOperations.length - 1
 
                 // Handle date parsing more robustly
                 let daysSince = 0
                 let timeAgo = 'Today'
                 try {
-                  const opDate = new Date(op.Date || op.date || op.CreatedAt || 0)
+                  const opDate = new Date(op.date || op.CreatedAt || 0)
                   if (!isNaN(opDate.getTime())) {
                     daysSince = Math.floor((Date.now() - opDate.getTime()) / (1000 * 60 * 60 * 24))
                     timeAgo = daysSince === 0 ? 'Today' :
