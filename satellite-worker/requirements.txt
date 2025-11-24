@@ -1,9 +1,9 @@
 flask
-rasterio
 numpy
 boto3
-pystac-client
+rasterio
+scipy
 shapely
+pystac-client
 Pillow
 pyproj
-

@@ -9,6 +9,7 @@ import 'leaflet-draw' // Ensure L.Draw is attached to L
 import { TreeDeciduous, MapPin, Ruler, Calendar, Trash2, Edit2, Save, X, Plus, Satellite, Cloud, AlertCircle, MousePointerClick, Trees, Droplets, Wind, Thermometer } from 'lucide-react'
 import { apiCall } from '../config'
 import { useAuth } from '../contexts/AuthContext'
+import { SatelliteInsights } from '../components/satellite/SatelliteInsights'
 
 // Component to handle map zoom to bounds
 function MapController({ bounds }: { bounds: L.LatLngBounds | null }) {
@@ -111,7 +112,9 @@ function Parcels() {
   const [mapBounds, setMapBounds] = useState<L.LatLngBounds | null>(null)
   const [ndviData, setNdviData] = useState<any>(null)
   const [showNdviLayer, setShowNdviLayer] = useState(true)
+  const [selectedSatelliteIndex, setSelectedSatelliteIndex] = useState<'ndvi' | 'ndwi' | 'ndmi' | 'evi'>('ndvi')
   const [weatherData, setWeatherData] = useState<any>(null)
+  const [satelliteLastUpdated, setSatelliteLastUpdated] = useState<number>(0)
   const [irrigationData, setIrrigationData] = useState<any>(null)
   const [pestData, setPestData] = useState<any>(null)
   const [showInfoPanel, setShowInfoPanel] = useState(true)
@@ -130,10 +133,10 @@ function Parcels() {
   const [newParcelArea, setNewParcelArea] = useState('')
   const [newParcelTrees, setNewParcelTrees] = useState('')
   const [selectedFarmId, setSelectedFarmId] = useState<number>(0)
-  
+
   // Get user's accessible farms
   const userFarms = user?.farms || []
-  
+
   // Set default farm when farms are loaded
   useEffect(() => {
     if (userFarms.length > 0 && selectedFarmId === 0) {
@@ -301,7 +304,7 @@ function Parcels() {
 
   const handleSaveNewParcel = async () => {
     if (!newParcelGeometry) return
-    
+
     // Validate farm selection
     if (selectedFarmId === 0) {
       alert('Please select a farm')
@@ -450,6 +453,7 @@ function Parcels() {
 
       if (data.status === 'success') {
         setNdviData({ ...data, parcelId })
+        setSatelliteLastUpdated(Date.now())
         console.log('NDVI data set:', { parcelId, hasImage: !!data.ndvi_image })
 
         // No alert popup - data is displayed in the panel automatically
@@ -900,7 +904,10 @@ function Parcels() {
 
                       return (
                         <ImageOverlay
-                          url={ndviData.ndvi_image}
+                          url={selectedSatelliteIndex === 'ndvi' ? ndviData.ndvi_image :
+                            selectedSatelliteIndex === 'ndwi' ? ndviData.ndwi_image :
+                              selectedSatelliteIndex === 'ndmi' ? ndviData.ndmi_image :
+                                ndviData.evi_image}
                           bounds={imageBounds}
                           opacity={0.7}
                           zIndex={1000}
@@ -934,17 +941,37 @@ function Parcels() {
               </span>
             </div>
 
-            {/* NDVI Toggle Button */}
-            <button
-              onClick={() => setShowNdviLayer(!showNdviLayer)}
-              className={`px-4 py-2 rounded-full shadow-lg font-semibold text-sm transition-all ${showNdviLayer
-                ? 'bg-green-600 text-white hover:bg-green-700'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-              title={showNdviLayer ? 'Hide NDVI Layer' : 'Show NDVI Layer'}
-            >
-              {showNdviLayer ? '👁️ NDVI ON' : '👁️ NDVI OFF'}
-            </button>
+            {/* Layer Controls */}
+            <div className="bg-white rounded-full shadow-lg flex items-center p-1 gap-1">
+              {(['ndvi', 'ndwi', 'ndmi', 'evi'] as const).map((index) => (
+                <button
+                  key={index}
+                  onClick={() => {
+                    setSelectedSatelliteIndex(index)
+                    setShowNdviLayer(true)
+                  }}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${showNdviLayer && selectedSatelliteIndex === index
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                >
+                  {index.toUpperCase()}
+                </button>
+              ))}
+
+              <div className="w-px h-4 bg-gray-300 mx-1"></div>
+
+              <button
+                onClick={() => setShowNdviLayer(!showNdviLayer)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${!showNdviLayer
+                  ? 'bg-gray-600 text-white'
+                  : 'text-gray-500 hover:bg-gray-100'
+                  }`}
+                title={showNdviLayer ? 'Hide Layer' : 'Show Layer'}
+              >
+                {showNdviLayer ? 'HIDE' : 'SHOW'}
+              </button>
+            </div>
           </div>
         )}
 
@@ -1271,6 +1298,13 @@ function Parcels() {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* Satellite Insights Section */}
+            {!isEditing && selectedParcel && (
+              <div className="mt-6 pt-6 border-t border-gray-100">
+                <SatelliteInsights parcelId={selectedParcel.ID} lastUpdated={satelliteLastUpdated} />
               </div>
             )}
 

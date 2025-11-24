@@ -65,6 +65,114 @@ class NDVIProcessor:
         )
         return ndvi
     
+    def calculate_ndwi(self, green_band, nir_band):
+        """
+        Calculate NDWI (Normalized Difference Water Index) for water stress detection.
+        
+        NDWI = (Green - NIR) / (Green + NIR)
+        
+        Water-stressed vegetation has lower NDWI values.
+        Typical ranges:
+        - NDWI > 0.3: Well-watered vegetation
+        - 0.1 < NDWI < 0.3: Moderate water stress
+        - NDWI < 0.1: Severe water stress
+        
+        Args:
+            green_band: numpy array of green band values (Band 3 for Sentinel-2)
+            nir_band: numpy array of NIR band values (Band 8 for Sentinel-2)
+            
+        Returns:
+            numpy array of NDWI values (-1 to 1)
+        """
+        denominator = green_band + nir_band
+        ndwi = np.where(
+            denominator != 0,
+            (green_band - nir_band) / denominator,
+            0
+        )
+        return ndwi
+    
+    def calculate_ndmi(self, nir_band, swir_band):
+        """
+        Calculate NDMI (Normalized Difference Moisture Index) for canopy water content.
+        
+        NDMI = (NIR - SWIR) / (NIR + SWIR)
+        
+        Sensitive to changes in leaf water content.
+        Typical ranges:
+        - NDMI > 0.4: High water content
+        - 0.2 < NDMI < 0.4: Moderate water content
+        - NDMI < 0.2: Low water content / water stress
+        
+        Args:
+            nir_band: numpy array of NIR band values (Band 8 for Sentinel-2)
+            swir_band: numpy array of SWIR band values (Band 11 for Sentinel-2, 1610nm)
+            
+        Returns:
+            numpy array of NDMI values (-1 to 1)
+        """
+        denominator = nir_band + swir_band
+        ndmi = np.where(
+            denominator != 0,
+            (nir_band - swir_band) / denominator,
+            0
+        )
+        return ndmi
+    
+    def calculate_evi(self, blue_band, red_band, nir_band):
+        """
+        Calculate EVI (Enhanced Vegetation Index) for improved vegetation monitoring.
+        
+        EVI = 2.5 * ((NIR - Red) / (NIR + 6*Red - 7.5*Blue + 1))
+        
+        More sensitive to high biomass areas and less affected by atmospheric conditions.
+        Typical ranges:
+        - EVI > 0.6: Very healthy, dense vegetation
+        - 0.4 < EVI < 0.6: Healthy vegetation
+        - 0.2 < EVI < 0.4: Moderate vegetation
+        - EVI < 0.2: Sparse vegetation or bare soil
+        
+        Args:
+            blue_band: numpy array of blue band values (Band 2 for Sentinel-2)
+            red_band: numpy array of red band values (Band 4 for Sentinel-2)
+            nir_band: numpy array of NIR band values (Band 8 for Sentinel-2)
+            
+        Returns:
+            numpy array of EVI values (typically -1 to 1, but can exceed for very dense vegetation)
+        """
+        denominator = nir_band + 6 * red_band - 7.5 * blue_band + 1
+        evi = np.where(
+            denominator != 0,
+            2.5 * ((nir_band - red_band) / denominator),
+            0
+        )
+        return evi
+    
+    def calculate_savi(self, red_band, nir_band, L=0.5):
+        """
+        Calculate SAVI (Soil Adjusted Vegetation Index) for areas with sparse vegetation.
+        
+        SAVI = ((NIR - Red) / (NIR + Red + L)) * (1 + L)
+        
+        Reduces soil brightness influence, useful for olive groves with visible soil.
+        L parameter: 0.5 is default, 0 for dense vegetation, 1 for no vegetation.
+        
+        Args:
+            red_band: numpy array of red band values (Band 4 for Sentinel-2)
+            nir_band: numpy array of NIR band values (Band 8 for Sentinel-2)
+            L: soil brightness correction factor (default 0.5)
+            
+        Returns:
+            numpy array of SAVI values
+        """
+        denominator = nir_band + red_band + L
+        savi = np.where(
+            denominator != 0,
+            ((nir_band - red_band) / denominator) * (1 + L),
+            0
+        )
+        return savi
+    
     def query_sentinel_data(self, geojson, start_date, end_date):
         """
         Query Sentinel-2 data for a specific area and time range.
@@ -163,15 +271,35 @@ class NDVIProcessor:
         }
     
     def _mock_process(self, geojson):
-        """Mock processing for development."""
+        """Mock processing for development - returns all satellite indices."""
+        import random
+        
+        # Generate realistic mock values for olive grove
+        ndvi_base = 0.68  # Healthy olive vegetation
+        
         return {
             "status": "success",
-            "message": "NDVI processed (MOCK MODE - real satellite data requires Copernicus credentials)",
-            "ndvi_mean": 0.68,  # Simulated NDVI (0.6-0.8 = healthy vegetation)
+            "message": "Satellite indices processed (MOCK MODE - real satellite data requires Copernicus credentials)",
+            
+            # Vegetation indices
+            "ndvi": round(ndvi_base + random.uniform(-0.05, 0.05), 3),  # 0.63-0.73 (Good)
+            "evi": round(ndvi_base * 0.7 + random.uniform(-0.03, 0.03), 3),  # ~0.48 (Good)
+            "savi": round(ndvi_base * 0.8 + random.uniform(-0.04, 0.04), 3),  # ~0.54 (Good)
+            
+            # Water stress indices
+            "ndwi": round(0.25 + random.uniform(-0.08, 0.08), 3),  # 0.17-0.33 (Moderate-Good)
+            "ndmi": round(0.30 + random.uniform(-0.06, 0.06), 3),  # 0.24-0.36 (Moderate-Good)
+            
+            # Metadata
+            "product_date": (datetime.now() - timedelta(days=random.randint(3, 10))).strftime('%Y-%m-%d'),
+            "cloud_cover": round(random.uniform(5.0, 25.0), 1),
+            "resolution": 10.0,  # meters
+            "source": "sentinel-2",
+            
+            # Legacy fields for compatibility
+            "ndvi_mean": round(ndvi_base, 3),
             "ndvi_std": 0.12,
-            "product_date": (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d'),
-            "cloud_cover": 15.2,
-            "image_url": "https://via.placeholder.com/800x600/00ff00/ffffff?text=NDVI+Overlay+(Mock)",
+            "image_url": "https://via.placeholder.com/800x600/00ff00/ffffff?text=Satellite+Indices+(Mock)",
             "info": "To enable real satellite processing, set COPERNICUS_USER and COPERNICUS_PASSWORD env vars"
         }
 

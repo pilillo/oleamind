@@ -190,26 +190,34 @@ class AWSNDVIProcessor:
     
     def calculate_ndvi_from_s3(self, item, geojson):
         """
-        Calculate NDVI from Sentinel-2 bands stored on S3.
+        Calculate all indices from Sentinel-2 bands stored on S3 and generate colored overlay images.
         
         Args:
             item: STAC item with band URLs
             geojson: GeoJSON geometry to clip to
             
         Returns:
-            dict with NDVI statistics and image
+            dict with all index statistics and images
         """
         if self.mock_mode:
             return self._mock_ndvi()
         
         try:
+            from image_generator import generate_index_image
+            
             # Get band URLs from STAC item
+            blue_url = item.assets['blue'].href    # Band 2 (10m resolution)
+            green_url = item.assets['green'].href  # Band 3 (10m resolution)
             red_url = item.assets['red'].href      # Band 4 (10m resolution)
             nir_url = item.assets['nir'].href      # Band 8 (10m resolution)
+            swir_url = item.assets['swir16'].href  # Band 11 (20m resolution, for NDMI)
             
             print(f"Reading bands from S3...")
+            print(f"BLUE: {blue_url[:80]}...")
+            print(f"GREEN: {green_url[:80]}...")
             print(f"RED: {red_url[:80]}...")
             print(f"NIR: {nir_url[:80]}...")
+            print(f"SWIR: {swir_url[:80]}...")
             
             # Create AWS session for rasterio (unsigned access)
             aws_session = AWSSession(
@@ -224,53 +232,78 @@ class AWSNDVIProcessor:
             print(f"WGS84 bounds: {bounds_wgs84}")
             
             with rasterio.Env(aws_session):
+                # Read BLUE band
+                with rasterio.open(blue_url) as blue_src:
+                    print(f"Raster CRS: {blue_src.crs}")
+                    bounds_raster = transform_bounds('EPSG:4326', blue_src.crs, *bounds_wgs84)
+                    window = from_bounds(*bounds_raster, transform=blue_src.transform)
+                    blue = blue_src.read(1, window=window, masked=True)
+                    window_transform = blue_src.window_transform(window)
+                    window_shape = blue.shape
+                    raster_crs = blue_src.crs
+                
+                # Read GREEN band
+                with rasterio.open(green_url) as green_src:
+                    bounds_raster = transform_bounds('EPSG:4326', green_src.crs, *bounds_wgs84)
+                    window = from_bounds(*bounds_raster, transform=green_src.transform)
+                    green = green_src.read(1, window=window, masked=True)
+                
                 # Read RED band
                 with rasterio.open(red_url) as red_src:
-                    print(f"Raster CRS: {red_src.crs}")
-                    
-                    # Transform bounds from WGS84 to raster CRS
                     bounds_raster = transform_bounds('EPSG:4326', red_src.crs, *bounds_wgs84)
-                    print(f"Raster CRS bounds: {bounds_raster}")
-                    
-                    # Create window from transformed bounds
                     window = from_bounds(*bounds_raster, transform=red_src.transform)
-                    print(f"Window: {window}")
-                    
-                    # Read the data
                     red = red_src.read(1, window=window, masked=True)
                     print(f"RED band shape: {red.shape}")
-                    
-                    # Get the transform for the windowed data
-                    window_transform = red_src.window_transform(window)
-                    window_shape = red.shape
-                    raster_crs = red_src.crs
                 
                 # Read NIR band
                 with rasterio.open(nir_url) as nir_src:
-                    # Transform bounds from WGS84 to raster CRS
                     bounds_raster = transform_bounds('EPSG:4326', nir_src.crs, *bounds_wgs84)
-                    
-                    # Create window from transformed bounds
                     window = from_bounds(*bounds_raster, transform=nir_src.transform)
-                    
-                    # Read the data
                     nir = nir_src.read(1, window=window, masked=True)
                     print(f"NIR band shape: {nir.shape}")
+                
+                # Read SWIR band (20m resolution - will be resampled)
+                with rasterio.open(swir_url) as swir_src:
+                    bounds_raster = transform_bounds('EPSG:4326', swir_src.crs, *bounds_wgs84)
+                    window = from_bounds(*bounds_raster, transform=swir_src.transform)
+                    swir = swir_src.read(1, window=window, masked=True)
+                    # Resample SWIR to match 10m bands using nearest neighbor
+                    from scipy.ndimage import zoom
+                    scale_factor = (red.shape[0] / swir.shape[0], red.shape[1] / swir.shape[1])
+                    swir = zoom(swir.filled(0), scale_factor, order=0)  # order=0 = nearest neighbor
+                    swir = np.ma.masked_array(swir, mask=red.mask if hasattr(red, 'mask') else False)
+                    print(f"SWIR band resampled to shape: {swir.shape}")
             
-            # Calculate NDVI: (NIR - Red) / (NIR + Red)
-            # Add small epsilon to avoid division by zero
-            ndvi = (nir.astype(float) - red.astype(float)) / (nir.astype(float) + red.astype(float) + 1e-8)
+            # Calculate indices (add epsilon to avoid division by zero)
+            eps = 1e-8
             
-            # --- UPSAMPLING STEP ---
-            # Upsample the NDVI array to higher resolution (configurable)
-            # This allows for precise clipping at the polygon boundary while keeping
-            # the interior pixels "blocky" (Nearest Neighbor behavior).
-            # Can be configured via NDVI_UPSCALE_FACTOR env var (default: 3)
+            # NDVI = (NIR - Red) / (NIR + Red)
+            ndvi = (nir.astype(float) - red.astype(float)) / (nir.astype(float) + red.astype(float) + eps)
+            
+            # NDWI = (Green - NIR) / (Green + NIR)
+            ndwi = (green.astype(float) - nir.astype(float)) / (green.astype(float) + nir.astype(float) + eps)
+            
+            # NDMI = (NIR - SWIR) / (NIR + SWIR)
+            ndmi = (nir.astype(float) - swir.astype(float)) / (nir.astype(float) + swir.astype(float) + eps)
+            
+            # EVI = 2.5 * ((NIR - Red) / (NIR + 6*Red - 7.5*Blue + 1))
+            evi = 2.5 * ((nir.astype(float) - red.astype(float)) / 
+                        (nir.astype(float) + 6 * red.astype(float) - 7.5 * blue.astype(float) + 1))
+            
+            # SAVI = ((NIR - Red) / (NIR + Red + L)) * (1 + L), L=0.5
+            L = 0.5
+            savi = ((nir.astype(float) - red.astype(float)) / 
+                   (nir.astype(float) + red.astype(float) + L)) * (1 + L)
+            
+            # --- UPSAMPLING for all indices ---
             upscale_factor = int(os.getenv('NDVI_UPSCALE_FACTOR', '3'))
-            ndvi_high_res = np.repeat(np.repeat(ndvi, upscale_factor, axis=0), upscale_factor, axis=1)
             
-            # Update the transform to reflect the new smaller pixel size
-            # We scale the pixel width/height by 1/upscale_factor
+            # Upsample all index arrays
+            ndvi_high_res = np.repeat(np.repeat(ndvi, upscale_factor, axis=0), upscale_factor, axis=1)
+            ndwi_high_res = np.repeat(np.repeat(ndwi, upscale_factor, axis=0), upscale_factor, axis=1)
+            ndmi_high_res = np.repeat(np.repeat(ndmi, upscale_factor, axis=0), upscale_factor, axis=1)
+            evi_high_res = np.repeat(np.repeat(evi, upscale_factor, axis=0), upscale_factor, axis=1)
+            
             new_transform = window_transform * Affine.scale(1/upscale_factor, 1/upscale_factor)
             new_shape = ndvi_high_res.shape
             
@@ -278,8 +311,7 @@ class AWSNDVIProcessor:
             project = pyproj.Transformer.from_crs('EPSG:4326', raster_crs, always_xy=True)
             geom_raster_crs = shapely_transform(project.transform, geom)
             
-            # Create a mask for pixels outside the polygon using the HIGH RES grid
-            # geometry_mask returns True for pixels OUTSIDE the geometry
+            # Create mask for high-res arrays
             polygon_mask = geometry_mask(
                 [geom_raster_crs],
                 out_shape=new_shape,
@@ -287,39 +319,50 @@ class AWSNDVIProcessor:
                 invert=False
             )
             
-            print(f"Polygon mask shape: {polygon_mask.shape}, masked pixels: {polygon_mask.sum()}")
-            
-            # Apply polygon mask to HIGH RES NDVI
-            # Combine existing mask (upsampled) with polygon mask
+            # Apply mask to all high-res arrays
             if hasattr(ndvi, 'mask'):
-                # Upsample the original mask too
                 mask_high_res = np.repeat(np.repeat(ndvi.mask, upscale_factor, axis=0), upscale_factor, axis=1)
                 final_mask = mask_high_res | polygon_mask
             else:
                 final_mask = polygon_mask
-                
+            
             ndvi_masked = np.ma.masked_array(ndvi_high_res, mask=final_mask)
+            ndwi_masked = np.ma.masked_array(ndwi_high_res, mask=final_mask)
+            ndmi_masked = np.ma.masked_array(ndmi_high_res, mask=final_mask)
+            evi_masked = np.ma.masked_array(evi_high_res, mask=final_mask)
             
-            # Generate colored NDVI image from the high-res masked array
-            ndvi_image_base64 = self.generate_ndvi_image(ndvi_masked)
+            # Generate colored images for all indices
+            print("Generating colored overlay images...")
+            ndvi_image = generate_index_image(ndvi_masked, 'ndvi')
+            ndwi_image = generate_index_image(ndwi_masked, 'ndwi')
+            ndmi_image = generate_index_image(ndmi_masked, 'ndmi')
+            evi_image = generate_index_image(evi_masked, 'evi')
+            print("✓ All overlay images generated")
             
-            # Calculate stats on the ORIGINAL low-res data (for scientific accuracy)
-            # We only use the high-res for the visual image
-            
-            # For stats, we need a low-res mask
+            # Calculate stats on ORIGINAL low-res data for all indices
             low_res_mask = geometry_mask(
                 [geom_raster_crs],
                 out_shape=window_shape,
                 transform=window_transform,
                 invert=False
             )
-            if hasattr(ndvi, 'mask'):
-                ndvi.mask = ndvi.mask | low_res_mask
-            else:
-                ndvi = np.ma.masked_array(ndvi, mask=low_res_mask)
-                
+            
+            # Apply mask to all indices
+            for idx_array in [ndvi, ndwi, ndmi, evi, savi]:
+                if hasattr(idx_array, 'mask'):
+                    idx_array.mask = idx_array.mask | low_res_mask
+                else:
+                    idx_array = np.ma.masked_array(idx_array, mask=low_res_mask)
+            
+            # Calculate stats for each index
+            def get_stats(arr):
+                valid = arr[~arr.mask] if hasattr(arr, 'mask') else arr
+                valid = valid[np.isfinite(valid)]
+                if valid.size == 0:
+                    return None
+                return float(np.mean(valid))
+            
             ndvi_valid = ndvi[~ndvi.mask] if hasattr(ndvi, 'mask') else ndvi
-            # Remove any NaN or infinite values
             ndvi_valid = ndvi_valid[np.isfinite(ndvi_valid)]
 
             if ndvi_valid.size == 0:
@@ -330,24 +373,17 @@ class AWSNDVIProcessor:
                 }
 
             img_dims = f"{ndvi_high_res.shape[1]}x{ndvi_high_res.shape[0]}px"
-            print(f"NDVI calculated: mean={np.mean(ndvi_valid):.3f}, std={np.std(ndvi_valid):.3f}, pixels={ndvi_valid.size}, image={img_dims}")
+            print(f"Indices calculated: NDVI={np.mean(ndvi_valid):.3f}, NDWI={get_stats(ndwi):.3f}, NDMI={get_stats(ndmi):.3f}, EVI={get_stats(evi):.3f}")
 
-            # Calculate exact bounds of the generated image in WGS84
-            # The image corresponds to new_transform and new_shape (in raster CRS)
-            # Get bounds in raster CRS
-            # Affine transform: x = a*col + b*row + c, y = d*col + e*row + f
-            # typically a>0, e<0 (y decreases down)
+            # Calculate image bounds in WGS84
             minx = new_transform.c
             maxy = new_transform.f
             maxx = minx + (new_shape[1] * new_transform.a)
-            miny = maxy + (new_shape[0] * new_transform.e) # e is negative usually
+            miny = maxy + (new_shape[0] * new_transform.e)
             
-            # Ensure min/max are correct regardless of transform signs
             if minx > maxx: minx, maxx = maxx, minx
             if miny > maxy: miny, maxy = maxy, miny
 
-            # Transform back to WGS84
-            # transform_bounds takes (left, bottom, right, top) -> (minx, miny, maxx, maxy)
             img_bounds_wgs84 = transform_bounds(raster_crs, 'EPSG:4326', minx, miny, maxx, maxy)
             
             return {
@@ -356,13 +392,21 @@ class AWSNDVIProcessor:
                 "ndvi_min": float(np.min(ndvi_valid)),
                 "ndvi_max": float(np.max(ndvi_valid)),
                 "pixels_count": int(ndvi_valid.size),
-                "ndvi_image": ndvi_image_base64,
+                "ndvi_image": ndvi_image,
                 "image_dimensions": img_dims,
-                "image_bounds": list(img_bounds_wgs84) # [min_lon, min_lat, max_lon, max_lat]
+                "image_bounds": list(img_bounds_wgs84),
+                # New indices with images
+                "ndwi": get_stats(ndwi),
+                "ndwi_image": ndwi_image,
+                "ndmi": get_stats(ndmi),
+                "ndmi_image": ndmi_image,
+                "evi": get_stats(evi),
+                "evi_image": evi_image,
+                "savi": get_stats(savi),
             }
             
         except Exception as e:
-            logger.error(f"Error calculating NDVI from S3", exc_info=True, extra={"error": str(e)})
+            logger.error(f"Error calculating indices from S3", exc_info=True, extra={"error": str(e)})
             # Return mock data on error
             return self._mock_ndvi()
     

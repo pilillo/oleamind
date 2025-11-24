@@ -178,6 +178,11 @@ func main() {
 		protected.GET("/analytics/export/parcel-report/:parcel_id", controllers.ExportParcelReportPDF)
 		protected.GET("/analytics/export/comparison-report", controllers.ExportComparisonReportPDF)
 
+		// Satellite Data Routes
+		protected.GET("/satellite/:id/latest", controllers.GetLatestSatelliteData)
+		protected.GET("/satellite/:id/history", controllers.GetSatelliteHistory)
+		protected.GET("/satellite/:id/indices/:index", controllers.GetSatelliteIndexHistory)
+
 		// Mills Management Routes
 		protected.POST("/mills", controllers.CreateMill)
 		protected.GET("/mills", controllers.GetMills)

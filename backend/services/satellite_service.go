@@ -36,6 +36,19 @@ type NDVIResponse struct {
 	ProductDate     string    `json:"product_date"`
 	CloudCover      float64   `json:"cloud_cover"`
 	Satellite       string    `json:"satellite"`
+
+	// Enhanced vegetation indices
+	EVI  *float64 `json:"evi"`
+	SAVI *float64 `json:"savi"`
+
+	// Water stress indices
+	NDWI *float64 `json:"ndwi"`
+	NDMI *float64 `json:"ndmi"`
+
+	// Index overlay images
+	NDWIImage string `json:"ndwi_image"`
+	NDMIImage string `json:"ndmi_image"`
+	EVIImage  string `json:"evi_image"`
 }
 
 type CachedNDVIResponse struct {
@@ -214,6 +227,15 @@ func (s *SatelliteService) storeData(parcelID uint, userTier string, data *NDVIR
 		ImageBounds:     string(imageBoundsJSON),
 		ImageDimensions: data.ImageDimensions,
 		Satellite:       data.Satellite,
+		// New indices
+		EVI:  data.EVI,
+		SAVI: data.SAVI,
+		NDWI: data.NDWI,
+		NDMI: data.NDMI,
+		// New index images
+		NDWIImage: data.NDWIImage,
+		NDMIImage: data.NDMIImage,
+		EVIImage:  data.EVIImage,
 	}
 
 	// For FREE tier: delete old entries before saving
@@ -251,6 +273,15 @@ func (s *SatelliteService) convertToResponse(data *models.SatelliteData) *Cached
 			ProductDate:     data.ProductDate.Format("2006-01-02"),
 			CloudCover:      data.CloudCover,
 			Satellite:       data.Satellite,
+			// New indices
+			EVI:  data.EVI,
+			SAVI: data.SAVI,
+			NDWI: data.NDWI,
+			NDMI: data.NDMI,
+			// New index images
+			NDWIImage: data.NDWIImage,
+			NDMIImage: data.NDMIImage,
+			EVIImage:  data.EVIImage,
 		},
 		IsCached:   true,
 		IsStale:    false,
