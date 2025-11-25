@@ -22,7 +22,7 @@ func (s *PestControlService) CalculateRiskForParcel(parcelID uint) ([]models.Pes
 	err := initializers.DB.Where("parcel_id = ?", parcelID).
 		Order("fetched_at DESC").
 		First(&weather).Error
-	
+
 	if err != nil {
 		// Return empty assessments with a message instead of error
 		// This allows the frontend to display a helpful message
@@ -74,14 +74,28 @@ func (s *PestControlService) CalculateRiskForParcel(parcelID uint) ([]models.Pes
 // - Temperature: Optimum 20-30°C, low activity <15°C or >32°C
 // - Humidity: High humidity (>60%) favors development
 // - Precipitation: Recent rain can reduce adult population
+// NOTE: Only relevant during fruiting period (June-October)
 func (s *PestControlService) calculateOliveFlyRisk(weather *models.WeatherData, parcel *models.Parcel) models.PestRiskAssessment {
 	assessment := models.PestRiskAssessment{
-		ParcelID:     weather.ParcelID,
-		Date:         models.DateOnly{Time: time.Now()},
-		PestType:     models.PestTypeOliveFly,
-		Temperature:  weather.Temperature,
-		Humidity:     float64(weather.Humidity),
+		ParcelID:      weather.ParcelID,
+		Date:          models.DateOnly{Time: time.Now()},
+		PestType:      models.PestTypeOliveFly,
+		Temperature:   weather.Temperature,
+		Humidity:      float64(weather.Humidity),
 		Precipitation: weather.Precipitation,
+	}
+
+	// Check if we're in fruiting period - olive fruit fly only attacks fruit!
+	month := time.Now().Month()
+	isFruitingPeriod := month >= time.May && month <= time.October
+
+	// If no fruit present, pest is not relevant
+	if !isFruitingPeriod {
+		assessment.RiskScore = 0
+		assessment.RiskLevel = models.RiskLevelNone
+		assessment.AlertMessage = "Not applicable - no fruit present (dormant/post-harvest period)."
+		assessment.Recommendations = "{}"
+		return assessment
 	}
 
 	riskScore := 0.0
@@ -125,12 +139,11 @@ func (s *PestControlService) calculateOliveFlyRisk(weather *models.WeatherData, 
 	}
 
 	// Growth stage factor (0-10 points)
-	// Fruit set to maturation is critical period
-	month := time.Now().Month()
-	if month >= time.June && month <= time.October {
-		riskScore += 10 // Fruiting period - critical
+	// Peak risk varies within fruiting period
+	if month >= time.July && month <= time.September {
+		riskScore += 10 // Peak fruiting - highest risk
 	} else {
-		riskScore += 2 // Non-critical period
+		riskScore += 5 // Early fruit set or late season
 	}
 
 	assessment.RiskScore = riskScore
@@ -197,7 +210,7 @@ func (s *PestControlService) calculatePeacockSpotRisk(weather *models.WeatherDat
 	// Wetness/humidity factor (0-40 points)
 	humidity := weather.Humidity
 	precipitation := weather.Precipitation
-	
+
 	if precipitation > 5 || humidity > 90 {
 		// Free moisture present - highest risk
 		riskScore += 40
@@ -359,7 +372,7 @@ func (s *PestControlService) GetRiskHistory(parcelID uint, pestType models.PestT
 	startDate := time.Now().AddDate(0, 0, -days)
 
 	query := initializers.DB.Where("parcel_id = ? AND date >= ?", parcelID, startDate)
-	
+
 	if pestType != "" {
 		query = query.Where("pest_type = ?", pestType)
 	}
@@ -393,7 +406,7 @@ func (s *PestControlService) GetMonitoringHistory(parcelID uint, pestType models
 	startDate := time.Now().AddDate(0, 0, -days)
 
 	query := initializers.DB.Where("parcel_id = ? AND date >= ?", parcelID, startDate)
-	
+
 	if pestType != "" {
 		query = query.Where("pest_type = ?", pestType)
 	}
@@ -401,4 +414,3 @@ func (s *PestControlService) GetMonitoringHistory(parcelID uint, pestType models
 	err := query.Order("date DESC").Find(&monitoring).Error
 	return monitoring, err
 }
-
