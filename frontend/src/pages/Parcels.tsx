@@ -11,6 +11,12 @@ import { apiCall } from '../config'
 import { useAuth } from '../contexts/AuthContext'
 import { SatelliteInsights } from '../components/satellite/SatelliteInsights'
 
+// Helper function to convert month number to name
+const getMonthName = (month: number): string => {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  return months[month - 1] || 'Unknown'
+}
+
 // Component to handle map zoom to bounds
 function MapController({ bounds }: { bounds: L.LatLngBounds | null }) {
   const map = useMap()
@@ -1546,6 +1552,80 @@ function Parcels() {
                         {irrigationData.should_irrigate ? '💧 Action Needed' : '✅ Adequate'}
                       </span>
                     </div>
+
+                    {/* Climate Profile Transparency */}
+                    {irrigationData.climate_profile && (
+                      <div className="mb-4 space-y-2">
+                        {/* Main badge */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className={`px-2 py-1 rounded-full flex items-center gap-1.5 text-xs font-medium border ${irrigationData.climate_profile.data_source === 'weather_history'
+                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            : 'bg-gray-50 text-gray-600 border-gray-200'
+                            }`}>
+                            {irrigationData.climate_profile.data_source === 'weather_history' ? (
+                              <>
+                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                                  <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                                </svg>
+                                <span>Adapted to local climate</span>
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                                </svg>
+                                <span>Based on latitude ({Math.abs(irrigationData.climate_profile.latitude || 0).toFixed(1)}°)</span>
+                              </>
+                            )}
+                          </div>
+
+                          {/* Confidence indicator */}
+                          {irrigationData.climate_profile.confidence_score !== undefined && irrigationData.climate_profile.confidence_score > 0 && (
+                            <div className="px-2 py-1 rounded-full bg-white border border-gray-200 flex items-center gap-1.5">
+                              <div className="flex gap-0.5">
+                                {[1, 2, 3, 4, 5].map(i => (
+                                  <div
+                                    key={i}
+                                    className={`w-1 h-3 rounded-sm ${i <= (irrigationData.climate_profile.confidence_score || 0) * 5
+                                      ? 'bg-green-500'
+                                      : 'bg-gray-200'
+                                      }`}
+                                  />
+                                ))}
+                              </div>
+                              <span className="text-xs text-gray-600">Confidence</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Expandable details */}
+                        <details className="text-xs text-gray-600">
+                          <summary className="cursor-pointer hover:text-gray-900 select-none">Climate profile details</summary>
+                          <div className="mt-2 space-y-1 pl-4 border-l-2 border-gray-200">
+                            <p>
+                              <span className="font-medium">Data source:</span>{' '}
+                              {irrigationData.climate_profile.data_source === 'weather_history'
+                                ? `${irrigationData.climate_profile.data_points} days of weather data`
+                                : 'Estimated from geographic location'}
+                            </p>
+                            {irrigationData.climate_profile.dormancy_start_month && (
+                              <p>
+                                <span className="font-medium">Dormancy period:</span>{' '}
+                                {getMonthName(irrigationData.climate_profile.dormancy_start_month)} to{' '}
+                                {getMonthName(irrigationData.climate_profile.dormancy_end_month)}
+                              </p>
+                            )}
+                            {irrigationData.climate_profile.last_calculated && (
+                              <p>
+                                <span className="font-medium">Last updated:</span>{' '}
+                                {new Date(irrigationData.climate_profile.last_calculated).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                        </details>
+                      </div>
+                    )}
 
                     {/* Main recommendation */}
                     {irrigationData.should_irrigate ? (

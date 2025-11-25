@@ -77,6 +77,18 @@ func (s *IrrigationService) CalculateRecommendation(parcelID uint) (*models.Irri
 		return nil, fmt.Errorf("failed to get irrigation system: %w", err)
 	}
 
+	// NEW: Get or create climate profile
+	climateService := NewClimateProfileService()
+	climateProfile, err := climateService.GetOrCreateProfile(parcelID)
+	if err != nil {
+		slog.Warn("Failed to get climate profile, using defaults", "error", err, "parcel_id", parcelID)
+		// Use default profile if fetch fails
+		climateProfile = &models.ClimateProfile{
+			IrrigationFactor: 1.0,
+			ETcMultiplier:    1.0,
+		}
+	}
+
 	// Get recent irrigation events (last 7 days)
 	var recentIrrigations []models.IrrigationEvent
 	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
@@ -103,8 +115,8 @@ func (s *IrrigationService) CalculateRecommendation(parcelID uint) (*models.Irri
 		GrowthStage:     growthStage,
 	}
 
-	// ETc = ET0 × Kc (crop evapotranspiration)
-	recommendation.ETc = recommendation.ET0 * recommendation.Kc
+	// ETc = ET0 × Kc × Climate Multiplier (crop evapotranspiration adjusted for regional climate)
+	recommendation.ETc = (recommendation.ET0 * recommendation.Kc) * climateProfile.ETcMultiplier
 
 	// Get rainfall from weather (next 24h forecast)
 	recommendation.Rainfall = weather.RainNext24h
@@ -151,16 +163,17 @@ func (s *IrrigationService) CalculateRecommendation(parcelID uint) (*models.Irri
 	// Determine stress level
 	recommendation.StressLevel = s.getStressLevel(depletionRatio)
 
-	// Check if we're in dormant season (winter months) - olives don't need irrigation
-	isDormant := growthStage == "dormant"
+	// Check if we're in dormant season using climate profile
+	currentMonth := int(time.Now().Month())
+	isDormant := isInDormancyPeriod(currentMonth, climateProfile)
 
 	// Check if soil is saturated (>90% moisture)
 	isSaturated := recommendation.SoilMoistureEstimate > 90.0
 
-	// Determine if irrigation is needed
-	irrigationThreshold := IrrigationThresholdNormal
+	// Determine if irrigation is needed - apply climate-based irrigation factor
+	irrigationThreshold := IrrigationThresholdNormal * climateProfile.IrrigationFactor
 	if growthStage == "flowering" || growthStage == "fruit_set" {
-		irrigationThreshold = IrrigationThresholdCritical // More critical stages
+		irrigationThreshold = IrrigationThresholdCritical * climateProfile.IrrigationFactor // More critical stages
 	}
 
 	// Don't irrigate if dormant, saturated, or significant rain expected
@@ -434,4 +447,21 @@ func (s *IrrigationService) GetWaterUsageStats(parcelID uint, startDate, endDate
 	// TODO: Calculate water use efficiency
 
 	return stats, nil
+}
+
+// isInDormancyPeriod checks if current month falls within dormancy period
+func isInDormancyPeriod(month int, profile *models.ClimateProfile) bool {
+	if profile.DormancyStartMonth == nil || profile.DormancyEndMonth == nil {
+		// Fallback to Northern Hemisphere default (Nov-Feb)
+		return month >= 11 || month <= 2
+	}
+
+	start := *profile.DormancyStartMonth
+	end := *profile.DormancyEndMonth
+
+	// Handle wrapping across year boundary (e.g., Nov=11 to Mar=3)
+	if start > end {
+		return month >= start || month <= end
+	}
+	return month >= start && month <= end
 }
