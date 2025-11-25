@@ -118,6 +118,7 @@ function Parcels() {
   const [irrigationData, setIrrigationData] = useState<any>(null)
   const [pestData, setPestData] = useState<any>(null)
   const [showInfoPanel, setShowInfoPanel] = useState(true)
+  const [activeTab, setActiveTab] = useState<'overview' | 'conditions' | 'satellite'>('conditions')
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState('')
   const [editArea, setEditArea] = useState('')
@@ -1249,7 +1250,31 @@ function Parcels() {
               )}
             </div>
 
+            {/* Tab Navigation - only shown in view mode */}
             {!isEditing && (
+              <div className="flex border-b border-gray-200 mb-4">
+                {[
+                  { id: 'overview', icon: '📊', label: 'Overview' },
+                  { id: 'conditions', icon: '🌦️', label: 'Current' },
+                  { id: 'satellite', icon: '🛰️', label: 'Satellite' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 text-sm font-medium transition-all border-b-2 ${activeTab === tab.id
+                      ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                      }`}
+                  >
+                    <span>{tab.icon}</span>
+                    <span>{tab.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Overview Tab Content */}
+            {!isEditing && activeTab === 'overview' && (
               <div className="space-y-6">
                 <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
                   <div>
@@ -1301,401 +1326,405 @@ function Parcels() {
               </div>
             )}
 
-            {/* Satellite Insights Section */}
-            {!isEditing && selectedParcel && (
-              <div className="mt-6 pt-6 border-t border-gray-100">
+            {/* Satellite Tab Content */}
+            {!isEditing && activeTab === 'satellite' && selectedParcel && (
+              <div className="space-y-6">
                 <SatelliteInsights parcelId={selectedParcel.ID} lastUpdated={satelliteLastUpdated} />
-              </div>
-            )}
 
-            {/* NDVI Section */}
-            {ndviData && ndviData.parcelId === selectedParcel.ID && (
-              <div className="mt-6 pt-6 border-t border-gray-100">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-bold text-sm text-gray-800 flex items-center gap-2">
-                    <Satellite size={16} className="text-indigo-600" />
-                    NDVI Analysis
-                  </h4>
-                  <div className="flex gap-2">
-                    {ndviData.is_cached && (
-                      <span className={`text-[10px] px-2 py-1 rounded-full font-medium border ${ndviData.is_stale
-                        ? 'bg-amber-50 text-amber-700 border-amber-200'
-                        : 'bg-green-50 text-green-700 border-green-200'
-                        }`}>
-                        {ndviData.is_stale ? '⚠️ Cached (Stale)' : '✅ Cached'}
-                      </span>
-                    )}
-                    {ndviData.refreshing && (
-                      <span className="text-[10px] px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 animate-pulse font-medium">
-                        🔄 Updating...
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Satellite Acquisition Date */}
-                <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 p-4 rounded-xl mb-4 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 -mt-2 -mr-2 w-16 h-16 bg-white opacity-20 rounded-full blur-xl"></div>
-                  <div className="flex items-center relative z-10">
-                    <div className="mr-3 bg-white p-2 rounded-lg shadow-sm text-indigo-600">
-                      <Calendar size={20} />
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider mb-0.5">
-                        Acquisition Date
-                      </div>
-                      <div className="text-lg font-bold text-gray-900 leading-tight">
-                        {new Date(ndviData.product_date).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
-                        })}
-                      </div>
-                      <div className="text-xs text-indigo-600/80 mt-1 flex items-center gap-1">
-                        <Cloud size={10} /> Cloud Cover: {ndviData.cloud_cover?.toFixed(1)}%
+                {/* NDVI Section - inside Satellite tab */}
+                {ndviData && ndviData.parcelId === selectedParcel.ID && (
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-bold text-sm text-gray-800 flex items-center gap-2">
+                        <Satellite size={16} className="text-indigo-600" />
+                        NDVI Analysis
+                      </h4>
+                      <div className="flex gap-2">
+                        {ndviData.is_cached && (
+                          <span className={`text-[10px] px-2 py-1 rounded-full font-medium border ${ndviData.is_stale
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-green-50 text-green-700 border-green-200'
+                            }`}>
+                            {ndviData.is_stale ? '⚠️ Cached (Stale)' : '✅ Cached'}
+                          </span>
+                        )}
+                        {ndviData.refreshing && (
+                          <span className="text-[10px] px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 animate-pulse font-medium">
+                            🔄 Updating...
+                          </span>
+                        )}
                       </div>
                     </div>
-                  </div>
-                </div>
 
-                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                  <div className="p-3 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                    <span className="text-xs font-semibold text-gray-600">Health Assessment</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${ndviData.ndvi_mean < 0.3 ? 'bg-red-100 text-red-800' :
-                      ndviData.ndvi_mean < 0.5 ? 'bg-yellow-100 text-yellow-800' :
-                        ndviData.ndvi_mean < 0.7 ? 'bg-green-100 text-green-800' : 'bg-emerald-100 text-emerald-800'
-                      }`}>
-                      {
-                        ndviData.ndvi_mean < 0.3 ? 'Poor' :
-                          ndviData.ndvi_mean < 0.5 ? 'Moderate' :
-                            ndviData.ndvi_mean < 0.7 ? 'Good' : 'Excellent'
-                      }
-                    </span>
-                  </div>
-                  <div className="p-4">
-                    <div className="flex justify-between items-end mb-2">
-                      <span className="text-sm text-gray-500">Mean NDVI</span>
-                      <span className="text-2xl font-mono font-bold text-gray-900">{ndviData.ndvi_mean?.toFixed(3)}</span>
-                    </div>
-                    {ndviData.ndvi_image && (
-                      <div className="relative rounded-lg overflow-hidden border border-gray-100">
-                        <img
-                          src={ndviData.ndvi_image}
-                          alt="NDVI Preview"
-                          className="w-full h-32 object-cover"
-                          style={{ imageRendering: 'pixelated' }}
-                        />
-                        <div className="absolute bottom-0 left-0 right-0 bg-black/50 backdrop-blur-sm px-2 py-1 text-[10px] text-white flex justify-between">
-                          <span>Min: {ndviData.ndvi_min?.toFixed(2)}</span>
-                          <span>Max: {ndviData.ndvi_max?.toFixed(2)}</span>
+                    {/* Satellite Acquisition Date */}
+                    <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 p-4 rounded-xl mb-4 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 -mt-2 -mr-2 w-16 h-16 bg-white opacity-20 rounded-full blur-xl"></div>
+                      <div className="flex items-center relative z-10">
+                        <div className="mr-3 bg-white p-2 rounded-lg shadow-sm text-indigo-600">
+                          <Calendar size={20} />
                         </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-              </div>
-            )}
-
-            {/* Weather Section */}
-            {!isEditing && weatherData && (
-              <div className="mt-6 pt-6 border-t border-gray-100">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-bold text-sm text-gray-800 flex items-center gap-2">
-                    <Cloud size={16} className="text-blue-600" />
-                    Weather Conditions
-                  </h4>
-                  <span className="text-[10px] px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">
-                    Live Data
-                  </span>
-                </div>
-
-                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-100 rounded-xl p-4 mb-3">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="text-4xl">
-                        {weatherData.precipitation > 0 ? '🌧️' :
-                          weatherData.temperature < 5 ? '❄️' :
-                            weatherData.temperature > 30 ? '🌡️' : '☀️'}
-                      </div>
-                      <div>
-                        <div className="text-3xl font-bold text-gray-900">
-                          {weatherData.temperature?.toFixed(1)}°C
-                        </div>
-                        <div className="text-xs text-blue-600">
-                          Current temperature
+                        <div>
+                          <div className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider mb-0.5">
+                            Acquisition Date
+                          </div>
+                          <div className="text-lg font-bold text-gray-900 leading-tight">
+                            {new Date(ndviData.product_date).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </div>
+                          <div className="text-xs text-indigo-600/80 mt-1 flex items-center gap-1">
+                            <Cloud size={10} /> Cloud Cover: {ndviData.cloud_cover?.toFixed(1)}%
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-white border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Droplets size={14} className="text-blue-500" />
-                      <span className="text-xs text-gray-500 font-medium">Humidity</span>
-                    </div>
-                    <div className="text-lg font-bold text-gray-900">{weatherData.humidity}%</div>
-                  </div>
-
-                  <div className="bg-white border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Wind size={14} className="text-gray-500" />
-                      <span className="text-xs text-gray-500 font-medium">Wind</span>
-                    </div>
-                    <div className="text-lg font-bold text-gray-900">{weatherData.wind_speed?.toFixed(1)} km/h</div>
-                  </div>
-
-                  <div className="bg-white border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Thermometer size={14} className="text-orange-500" />
-                      <span className="text-xs text-gray-500 font-medium">ET0</span>
-                    </div>
-                    <div className="text-lg font-bold text-gray-900">{weatherData.et0?.toFixed(1) || 'N/A'} <span className="text-xs font-normal text-gray-500">mm/day</span></div>
-                  </div>
-
-                  <div className="bg-white border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Cloud size={14} className="text-blue-500" />
-                      <span className="text-xs text-gray-500 font-medium">24h Rain</span>
-                    </div>
-                    <div className="text-lg font-bold text-gray-900">{weatherData.rain_next_24h?.toFixed(1) || '0'} <span className="text-xs font-normal text-gray-500">mm</span></div>
-                  </div>
-                </div>
-
-                {/* Actionable insights */}
-                <div className="mt-3 space-y-2">
-                  {weatherData.et0 > 3 && weatherData.rain_next_24h < 5 && (
-                    <div className="bg-amber-50 border-l-4 border-amber-400 p-3 rounded">
-                      <p className="text-xs font-semibold text-amber-900 flex items-center gap-1">
-                        <Droplets size={12} /> Irrigation Recommended
-                      </p>
-                      <p className="text-[10px] text-amber-700 mt-1">
-                        High evapotranspiration with no rain forecast
-                      </p>
-                    </div>
-                  )}
-
-                  {weatherData.rain_next_24h > 5 && (
-                    <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded">
-                      <p className="text-xs font-semibold text-blue-900 flex items-center gap-1">
-                        <Cloud size={12} /> Rain Expected
-                      </p>
-                      <p className="text-[10px] text-blue-700 mt-1">
-                        Delay pesticide applications
-                      </p>
-                    </div>
-                  )}
-
-                  {weatherData.temperature < 5 && (
-                    <div className="bg-purple-50 border-l-4 border-purple-400 p-3 rounded">
-                      <p className="text-xs font-semibold text-purple-900">❄️ Frost Risk</p>
-                      <p className="text-[10px] text-purple-700 mt-1">
-                        Monitor for frost damage
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                <p className="text-[10px] text-gray-400 text-center mt-3 pt-2 border-t border-gray-100">
-                  Updated: {new Date(weatherData.fetched_at).toLocaleString()}
-                </p>
-              </div>
-            )}
-
-            {/* Irrigation Section */}
-            {!isEditing && irrigationData && (
-              <div className="mt-6 pt-6 border-t border-gray-100">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-bold text-sm text-gray-800 flex items-center gap-2">
-                    <Droplets size={16} className="text-cyan-600" />
-                    Irrigation Recommendation
-                  </h4>
-                  <span className={`text-[10px] px-2 py-1 rounded-full font-medium border ${irrigationData.should_irrigate
-                    ? 'bg-amber-50 text-amber-700 border-amber-200'
-                    : 'bg-green-50 text-green-700 border-green-200'
-                    }`}>
-                    {irrigationData.should_irrigate ? '💧 Action Needed' : '✅ Adequate'}
-                  </span>
-                </div>
-
-                {/* Main recommendation */}
-                {irrigationData.should_irrigate ? (
-                  <div className={`border-l-4 rounded-lg p-4 mb-3 ${irrigationData.urgency_level === 'critical' ? 'bg-red-50 border-red-400' :
-                    irrigationData.urgency_level === 'high' ? 'bg-orange-50 border-orange-400' :
-                      irrigationData.urgency_level === 'medium' ? 'bg-amber-50 border-amber-400' :
-                        'bg-yellow-50 border-yellow-400'
-                    }`}>
-                    <div className="flex items-start gap-3">
-                      <div className="text-2xl">💧</div>
-                      <div className="flex-grow">
-                        <p className={`text-sm font-bold uppercase tracking-wide mb-2 ${irrigationData.urgency_level === 'critical' ? 'text-red-900' :
-                          irrigationData.urgency_level === 'high' ? 'text-orange-900' :
-                            irrigationData.urgency_level === 'medium' ? 'text-amber-900' :
-                              'text-yellow-900'
+                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                      <div className="p-3 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                        <span className="text-xs font-semibold text-gray-600">Health Assessment</span>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded ${ndviData.ndvi_mean < 0.3 ? 'bg-red-100 text-red-800' :
+                          ndviData.ndvi_mean < 0.5 ? 'bg-yellow-100 text-yellow-800' :
+                            ndviData.ndvi_mean < 0.7 ? 'bg-green-100 text-green-800' : 'bg-emerald-100 text-emerald-800'
                           }`}>
-                          Irrigation Needed ({irrigationData.urgency_level} Priority)
-                        </p>
-                        <div className="space-y-1">
-                          <p className="text-lg font-bold text-gray-900">
-                            {irrigationData.recommended_amount?.toFixed(1)} mm
-                          </p>
-                          <p className="text-xs text-gray-600">
-                            ≈ {irrigationData.recommended_liters_tree?.toFixed(0)} L/tree
-                          </p>
-                        </div>
+                          {
+                            ndviData.ndvi_mean < 0.3 ? 'Poor' :
+                              ndviData.ndvi_mean < 0.5 ? 'Moderate' :
+                                ndviData.ndvi_mean < 0.7 ? 'Good' : 'Excellent'
+                          }
+                        </span>
                       </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="text-2xl">✅</div>
-                      <div>
-                        <p className="text-sm font-semibold text-green-900">No Irrigation Needed</p>
-                        <p className="text-xs text-green-700 mt-1">
-                          Soil moisture is adequate. Next irrigation: {new Date(irrigationData.next_irrigation_date).toLocaleDateString()}
-                        </p>
+                      <div className="p-4">
+                        <div className="flex justify-between items-end mb-2">
+                          <span className="text-sm text-gray-500">Mean NDVI</span>
+                          <span className="text-2xl font-mono font-bold text-gray-900">{ndviData.ndvi_mean?.toFixed(3)}</span>
+                        </div>
+                        {ndviData.ndvi_image && (
+                          <div className="relative rounded-lg overflow-hidden border border-gray-100">
+                            <img
+                              src={ndviData.ndvi_image}
+                              alt="NDVI Preview"
+                              className="w-full h-32 object-cover"
+                              style={{ imageRendering: 'pixelated' }}
+                            />
+                            <div className="absolute bottom-0 left-0 right-0 bg-black/50 backdrop-blur-sm px-2 py-1 text-[10px] text-white flex justify-between">
+                              <span>Min: {ndviData.ndvi_min?.toFixed(2)}</span>
+                              <span>Max: {ndviData.ndvi_max?.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
                 )}
-
-                {/* Water status grid */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-white border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Droplets size={14} className="text-blue-500" />
-                      <span className="text-xs text-gray-500 font-medium">Soil Moisture</span>
-                    </div>
-                    <div className="text-lg font-bold text-gray-900">
-                      {irrigationData.soil_moisture_estimate?.toFixed(0)}%
-                    </div>
-                  </div>
-
-                  <div className="bg-white border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <AlertCircle size={14} className={
-                        irrigationData.stress_level === 'severe' ? 'text-red-500' :
-                          irrigationData.stress_level === 'moderate' ? 'text-orange-500' :
-                            irrigationData.stress_level === 'mild' ? 'text-yellow-500' :
-                              'text-green-500'
-                      } />
-                      <span className="text-xs text-gray-500 font-medium">Water Stress</span>
-                    </div>
-                    <div className="text-sm font-bold text-gray-900 capitalize">
-                      {irrigationData.stress_level || 'None'}
-                    </div>
-                  </div>
-
-                  <div className="bg-white border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <TreeDeciduous size={14} className="text-green-500" />
-                      <span className="text-xs text-gray-500 font-medium">Growth Stage</span>
-                    </div>
-                    <div className="text-sm font-bold text-gray-900 capitalize">
-                      {irrigationData.growth_stage?.replace('_', ' ') || 'N/A'}
-                    </div>
-                  </div>
-
-                  <div className="bg-white border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Calendar size={14} className="text-gray-500" />
-                      <span className="text-xs text-gray-500 font-medium">Next Irrigation</span>
-                    </div>
-                    <div className="text-xs font-bold text-gray-900">
-                      {new Date(irrigationData.next_irrigation_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </div>
-                  </div>
-                </div>
-
-                <p className="text-[10px] text-gray-400 text-center mt-3 pt-2 border-t border-gray-100">
-                  Calculated: {new Date(irrigationData.calculation_date).toLocaleString()}
-                </p>
               </div>
             )}
 
-            {/* Pest Control Section */}
-            {!isEditing && pestData && Array.isArray(pestData) && pestData.length > 0 && (
-              <div className="mt-6 pt-6 border-t border-gray-100">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-bold text-sm text-gray-800 flex items-center gap-2">
-                    <AlertCircle size={16} className="text-red-600" />
-                    Sanitary Status
-                  </h4>
-                </div>
+            {/* Current Conditions Tab Content */}
+            {!isEditing && activeTab === 'conditions' && (
+              <div className="space-y-6">
 
-                {pestData.map((assessment: any) => {
-                  const riskColorMap: any = {
-                    'critical': { bg: 'bg-red-50', border: 'border-red-400', text: 'text-red-900', badge: 'bg-red-100 text-red-700 border-red-300' },
-                    'high': { bg: 'bg-orange-50', border: 'border-orange-400', text: 'text-orange-900', badge: 'bg-orange-100 text-orange-700 border-orange-300' },
-                    'moderate': { bg: 'bg-amber-50', border: 'border-amber-400', text: 'text-amber-900', badge: 'bg-amber-100 text-amber-700 border-amber-300' },
-                    'low': { bg: 'bg-yellow-50', border: 'border-yellow-400', text: 'text-yellow-900', badge: 'bg-yellow-100 text-yellow-700 border-yellow-300' },
-                    'none': { bg: 'bg-green-50', border: 'border-green-400', text: 'text-green-900', badge: 'bg-green-100 text-green-700 border-green-300' }
-                  }
+                {!isEditing && weatherData && (
+                  <div className="mt-6 pt-6 border-t border-gray-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-bold text-sm text-gray-800 flex items-center gap-2">
+                        <Cloud size={16} className="text-blue-600" />
+                        Weather Conditions
+                      </h4>
+                      <span className="text-[10px] px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">
+                        Live Data
+                      </span>
+                    </div>
 
-                  const colors = riskColorMap[assessment.risk_level] || riskColorMap['none']
+                    <div className="bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-100 rounded-xl p-4 mb-3">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="text-4xl">
+                            {weatherData.precipitation > 0 ? '🌧️' :
+                              weatherData.temperature < 5 ? '❄️' :
+                                weatherData.temperature > 30 ? '🌡️' : '☀️'}
+                          </div>
+                          <div>
+                            <div className="text-3xl font-bold text-gray-900">
+                              {weatherData.temperature?.toFixed(1)}°C
+                            </div>
+                            <div className="text-xs text-blue-600">
+                              Current temperature
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
-                  const pestNameMap: any = {
-                    'olive_fly': 'Olive Fruit Fly',
-                    'peacock_spot': 'Peacock Spot',
-                    'verticillium': 'Verticillium Wilt',
-                    'olive_knot': 'Olive Knot',
-                    'anthracnose': 'Anthracnose'
-                  }
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-white border border-gray-200 rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Droplets size={14} className="text-blue-500" />
+                          <span className="text-xs text-gray-500 font-medium">Humidity</span>
+                        </div>
+                        <div className="text-lg font-bold text-gray-900">{weatherData.humidity}%</div>
+                      </div>
 
-                  return (
-                    <div key={assessment.pest_type} className={`${colors.bg} border ${colors.border} rounded-lg p-4 mb-3`}>
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <h5 className={`text-sm font-bold ${colors.text}`}>
-                            {pestNameMap[assessment.pest_type] || assessment.pest_type}
-                          </h5>
-                          <p className="text-[10px] text-gray-600 mt-1">
-                            Risk Score: {assessment.risk_score?.toFixed(0)}/100
+                      <div className="bg-white border border-gray-200 rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Wind size={14} className="text-gray-500" />
+                          <span className="text-xs text-gray-500 font-medium">Wind</span>
+                        </div>
+                        <div className="text-lg font-bold text-gray-900">{weatherData.wind_speed?.toFixed(1)} km/h</div>
+                      </div>
+
+                      <div className="bg-white border border-gray-200 rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Thermometer size={14} className="text-orange-500" />
+                          <span className="text-xs text-gray-500 font-medium">ET0</span>
+                        </div>
+                        <div className="text-lg font-bold text-gray-900">{weatherData.et0?.toFixed(1) || 'N/A'} <span className="text-xs font-normal text-gray-500">mm/day</span></div>
+                      </div>
+
+                      <div className="bg-white border border-gray-200 rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Cloud size={14} className="text-blue-500" />
+                          <span className="text-xs text-gray-500 font-medium">24h Rain</span>
+                        </div>
+                        <div className="text-lg font-bold text-gray-900">{weatherData.rain_next_24h?.toFixed(1) || '0'} <span className="text-xs font-normal text-gray-500">mm</span></div>
+                      </div>
+                    </div>
+
+                    {/* Actionable insights */}
+                    <div className="mt-3 space-y-2">
+                      {weatherData.et0 > 3 && weatherData.rain_next_24h < 5 && (
+                        <div className="bg-amber-50 border-l-4 border-amber-400 p-3 rounded">
+                          <p className="text-xs font-semibold text-amber-900 flex items-center gap-1">
+                            <Droplets size={12} /> Irrigation Recommended
+                          </p>
+                          <p className="text-[10px] text-amber-700 mt-1">
+                            High evapotranspiration with no rain forecast
                           </p>
                         </div>
-                        <span className={`text-[10px] px-2 py-1 rounded-full font-medium border ${colors.badge} uppercase tracking-wide`}>
-                          {assessment.risk_level}
-                        </span>
-                      </div>
+                      )}
 
-                      <div className={`text-xs ${colors.text} mt-2 leading-relaxed`}>
-                        {assessment.alert_message}
-                      </div>
+                      {weatherData.rain_next_24h > 5 && (
+                        <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded">
+                          <p className="text-xs font-semibold text-blue-900 flex items-center gap-1">
+                            <Cloud size={12} /> Rain Expected
+                          </p>
+                          <p className="text-[10px] text-blue-700 mt-1">
+                            Delay pesticide applications
+                          </p>
+                        </div>
+                      )}
 
-                      {assessment.risk_level !== 'none' && assessment.risk_level !== 'low' && (
-                        <div className="mt-3 pt-3 border-t border-gray-200">
-                          <p className="text-[10px] font-semibold text-gray-700 mb-1">Quick Actions:</p>
-                          <ul className="text-[10px] text-gray-600 space-y-1">
-                            {assessment.pest_type === 'olive_fly' && (
-                              <>
-                                <li>• Check McPhail traps</li>
-                                <li>• Monitor fruit for punctures</li>
-                                {assessment.risk_level === 'critical' && <li>• Apply treatment immediately</li>}
-                              </>
-                            )}
-                            {assessment.pest_type === 'peacock_spot' && (
-                              <>
-                                <li>• Inspect leaves for spots</li>
-                                <li>• Prepare copper fungicides</li>
-                                {assessment.risk_level === 'critical' && <li>• Apply preventive treatment</li>}
-                              </>
-                            )}
-                          </ul>
+                      {weatherData.temperature < 5 && (
+                        <div className="bg-purple-50 border-l-4 border-purple-400 p-3 rounded">
+                          <p className="text-xs font-semibold text-purple-900">❄️ Frost Risk</p>
+                          <p className="text-[10px] text-purple-700 mt-1">
+                            Monitor for frost damage
+                          </p>
                         </div>
                       )}
                     </div>
-                  )
-                })}
 
-                <p className="text-[10px] text-gray-400 text-center mt-3">
-                  Based on current weather conditions
-                </p>
+                    <p className="text-[10px] text-gray-400 text-center mt-3 pt-2 border-t border-gray-100">
+                      Updated: {new Date(weatherData.fetched_at).toLocaleString()}
+                    </p>
+                  </div>
+                )}
+
+                {/* Irrigation Section */}
+                {!isEditing && irrigationData && (
+                  <div className="mt-6 pt-6 border-t border-gray-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-bold text-sm text-gray-800 flex items-center gap-2">
+                        <Droplets size={16} className="text-cyan-600" />
+                        Irrigation Recommendation
+                      </h4>
+                      <span className={`text-[10px] px-2 py-1 rounded-full font-medium border ${irrigationData.should_irrigate
+                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                        : 'bg-green-50 text-green-700 border-green-200'
+                        }`}>
+                        {irrigationData.should_irrigate ? '💧 Action Needed' : '✅ Adequate'}
+                      </span>
+                    </div>
+
+                    {/* Main recommendation */}
+                    {irrigationData.should_irrigate ? (
+                      <div className={`border-l-4 rounded-lg p-4 mb-3 ${irrigationData.urgency_level === 'critical' ? 'bg-red-50 border-red-400' :
+                        irrigationData.urgency_level === 'high' ? 'bg-orange-50 border-orange-400' :
+                          irrigationData.urgency_level === 'medium' ? 'bg-amber-50 border-amber-400' :
+                            'bg-yellow-50 border-yellow-400'
+                        }`}>
+                        <div className="flex items-start gap-3">
+                          <div className="text-2xl">💧</div>
+                          <div className="flex-grow">
+                            <p className={`text-sm font-bold uppercase tracking-wide mb-2 ${irrigationData.urgency_level === 'critical' ? 'text-red-900' :
+                              irrigationData.urgency_level === 'high' ? 'text-orange-900' :
+                                irrigationData.urgency_level === 'medium' ? 'text-amber-900' :
+                                  'text-yellow-900'
+                              }`}>
+                              Irrigation Needed ({irrigationData.urgency_level} Priority)
+                            </p>
+                            <div className="space-y-1">
+                              <p className="text-lg font-bold text-gray-900">
+                                {irrigationData.recommended_amount?.toFixed(1)} mm
+                              </p>
+                              <p className="text-xs text-gray-600">
+                                ≈ {irrigationData.recommended_liters_tree?.toFixed(0)} L/tree
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="text-2xl">✅</div>
+                          <div>
+                            <p className="text-sm font-semibold text-green-900">No Irrigation Needed</p>
+                            <p className="text-xs text-green-700 mt-1">
+                              Soil moisture is adequate. Next irrigation: {new Date(irrigationData.next_irrigation_date).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Water status grid */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-white border border-gray-200 rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Droplets size={14} className="text-blue-500" />
+                          <span className="text-xs text-gray-500 font-medium">Soil Moisture</span>
+                        </div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {irrigationData.soil_moisture_estimate?.toFixed(0)}%
+                        </div>
+                      </div>
+
+                      <div className="bg-white border border-gray-200 rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <AlertCircle size={14} className={
+                            irrigationData.stress_level === 'severe' ? 'text-red-500' :
+                              irrigationData.stress_level === 'moderate' ? 'text-orange-500' :
+                                irrigationData.stress_level === 'mild' ? 'text-yellow-500' :
+                                  'text-green-500'
+                          } />
+                          <span className="text-xs text-gray-500 font-medium">Water Stress</span>
+                        </div>
+                        <div className="text-sm font-bold text-gray-900 capitalize">
+                          {irrigationData.stress_level || 'None'}
+                        </div>
+                      </div>
+
+                      <div className="bg-white border border-gray-200 rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <TreeDeciduous size={14} className="text-green-500" />
+                          <span className="text-xs text-gray-500 font-medium">Growth Stage</span>
+                        </div>
+                        <div className="text-sm font-bold text-gray-900 capitalize">
+                          {irrigationData.growth_stage?.replace('_', ' ') || 'N/A'}
+                        </div>
+                      </div>
+
+                      <div className="bg-white border border-gray-200 rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Calendar size={14} className="text-gray-500" />
+                          <span className="text-xs text-gray-500 font-medium">Next Irrigation</span>
+                        </div>
+                        <div className="text-xs font-bold text-gray-900">
+                          {new Date(irrigationData.next_irrigation_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="text-[10px] text-gray-400 text-center mt-3 pt-2 border-t border-gray-100">
+                      Calculated: {new Date(irrigationData.calculation_date).toLocaleString()}
+                    </p>
+                  </div>
+                )}
+
+                {/* Pest Control Section */}
+                {!isEditing && pestData && Array.isArray(pestData) && pestData.length > 0 && (
+                  <div className="mt-6 pt-6 border-t border-gray-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-bold text-sm text-gray-800 flex items-center gap-2">
+                        <AlertCircle size={16} className="text-red-600" />
+                        Sanitary Status
+                      </h4>
+                    </div>
+
+                    {pestData.map((assessment: any) => {
+                      const riskColorMap: any = {
+                        'critical': { bg: 'bg-red-50', border: 'border-red-400', text: 'text-red-900', badge: 'bg-red-100 text-red-700 border-red-300' },
+                        'high': { bg: 'bg-orange-50', border: 'border-orange-400', text: 'text-orange-900', badge: 'bg-orange-100 text-orange-700 border-orange-300' },
+                        'moderate': { bg: 'bg-amber-50', border: 'border-amber-400', text: 'text-amber-900', badge: 'bg-amber-100 text-amber-700 border-amber-300' },
+                        'low': { bg: 'bg-yellow-50', border: 'border-yellow-400', text: 'text-yellow-900', badge: 'bg-yellow-100 text-yellow-700 border-yellow-300' },
+                        'none': { bg: 'bg-green-50', border: 'border-green-400', text: 'text-green-900', badge: 'bg-green-100 text-green-700 border-green-300' }
+                      }
+
+                      const colors = riskColorMap[assessment.risk_level] || riskColorMap['none']
+
+                      const pestNameMap: any = {
+                        'olive_fly': 'Olive Fruit Fly',
+                        'peacock_spot': 'Peacock Spot',
+                        'verticillium': 'Verticillium Wilt',
+                        'olive_knot': 'Olive Knot',
+                        'anthracnose': 'Anthracnose'
+                      }
+
+                      return (
+                        <div key={assessment.pest_type} className={`${colors.bg} border ${colors.border} rounded-lg p-4 mb-3`}>
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <h5 className={`text-sm font-bold ${colors.text}`}>
+                                {pestNameMap[assessment.pest_type] || assessment.pest_type}
+                              </h5>
+                              <p className="text-[10px] text-gray-600 mt-1">
+                                Risk Score: {assessment.risk_score?.toFixed(0)}/100
+                              </p>
+                            </div>
+                            <span className={`text-[10px] px-2 py-1 rounded-full font-medium border ${colors.badge} uppercase tracking-wide`}>
+                              {assessment.risk_level}
+                            </span>
+                          </div>
+
+                          <div className={`text-xs ${colors.text} mt-2 leading-relaxed`}>
+                            {assessment.alert_message}
+                          </div>
+
+                          {assessment.risk_level !== 'none' && assessment.risk_level !== 'low' && (
+                            <div className="mt-3 pt-3 border-t border-gray-200">
+                              <p className="text-[10px] font-semibold text-gray-700 mb-1">Quick Actions:</p>
+                              <ul className="text-[10px] text-gray-600 space-y-1">
+                                {assessment.pest_type === 'olive_fly' && (
+                                  <>
+                                    <li>• Check McPhail traps</li>
+                                    <li>• Monitor fruit for punctures</li>
+                                    {assessment.risk_level === 'critical' && <li>• Apply treatment immediately</li>}
+                                  </>
+                                )}
+                                {assessment.pest_type === 'peacock_spot' && (
+                                  <>
+                                    <li>• Inspect leaves for spots</li>
+                                    <li>• Prepare copper fungicides</li>
+                                    {assessment.risk_level === 'critical' && <li>• Apply preventive treatment</li>}
+                                  </>
+                                )}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+
+                    <p className="text-[10px] text-gray-400 text-center mt-3">
+                      Based on current weather conditions
+                    </p>
+                  </div>
+                )}
+
               </div>
             )}
-
           </div>
         )}
 

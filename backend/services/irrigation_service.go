@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"math"
 	"time"
 
 	"github.com/oleamind/backend/initializers"
@@ -150,13 +151,23 @@ func (s *IrrigationService) CalculateRecommendation(parcelID uint) (*models.Irri
 	// Determine stress level
 	recommendation.StressLevel = s.getStressLevel(depletionRatio)
 
+	// Check if we're in dormant season (winter months) - olives don't need irrigation
+	isDormant := growthStage == "dormant"
+
+	// Check if soil is saturated (>90% moisture)
+	isSaturated := recommendation.SoilMoistureEstimate > 90.0
+
 	// Determine if irrigation is needed
 	irrigationThreshold := IrrigationThresholdNormal
 	if growthStage == "flowering" || growthStage == "fruit_set" {
 		irrigationThreshold = IrrigationThresholdCritical // More critical stages
 	}
 
-	recommendation.ShouldIrrigate = depletionRatio >= irrigationThreshold && recommendation.Rainfall < 5.0
+	// Don't irrigate if dormant, saturated, or significant rain expected
+	recommendation.ShouldIrrigate = depletionRatio >= irrigationThreshold &&
+		recommendation.Rainfall < 5.0 &&
+		!isDormant &&
+		!isSaturated
 
 	// Calculate recommended amount if irrigation is needed
 	if recommendation.ShouldIrrigate {
@@ -194,16 +205,49 @@ func (s *IrrigationService) CalculateRecommendation(parcelID uint) (*models.Irri
 		recommendation.NextIrrigationDate = time.Now().AddDate(0, 0, int(daysUntilNextIrrigation))
 	} else {
 		recommendation.UrgencyLevel = "none"
-		// Estimate when irrigation will be needed
-		daysUntilNeeded := (soilProfile.AvailableWaterCapacity*irrigationThreshold - recommendation.CumulativeDeficit) / recommendation.ETc
-		if daysUntilNeeded < 0 {
-			daysUntilNeeded = 1
+
+		// Special handling for dormant season
+		if isDormant {
+			// Set next irrigation to start of growing season (March 1)
+			now := time.Now()
+			nextMarch := time.Date(now.Year(), time.March, 1, 0, 0, 0, 0, now.Location())
+			if now.After(nextMarch) {
+				// If already past March this year, set to next year
+				nextMarch = nextMarch.AddDate(1, 0, 0)
+			}
+			recommendation.NextIrrigationDate = nextMarch
+		} else if isSaturated {
+			// Soil is saturated - estimate drainage time based on current moisture and ETc
+			// Assume we need to wait until moisture drops to ~70% before next irrigation
+			excessMoisture := recommendation.SoilMoistureEstimate - 70.0
+			// Convert to mm of water
+			excessWater := (excessMoisture / 100.0) * soilProfile.AvailableWaterCapacity
+			// Days until excess drains/evaporates
+			daysToNormal := excessWater / recommendation.ETc
+			days := int(math.Ceil(daysToNormal))
+			if days < 7 {
+				days = 7 // At least a week when saturated
+			}
+			recommendation.NextIrrigationDate = time.Now().AddDate(0, 0, days)
+		} else {
+			// Normal case: estimate when irrigation will be needed
+			daysUntilNeeded := (soilProfile.AvailableWaterCapacity*irrigationThreshold - recommendation.CumulativeDeficit) / recommendation.ETc
+
+			// Use Ceil to ensure we don't round down to 0 (Today) if it's < 1 day away but not yet needed
+			days := int(math.Ceil(daysUntilNeeded))
+			if days < 1 {
+				days = 1
+			}
+			recommendation.NextIrrigationDate = time.Now().AddDate(0, 0, days)
 		}
-		recommendation.NextIrrigationDate = time.Now().AddDate(0, 0, int(daysUntilNeeded))
 	}
 
-	// Weather forecast summary
-	if weather.RainNext24h > 10 {
+	// Weather forecast summary - provide context-aware messaging
+	if isDormant {
+		recommendation.WeatherForecast = "Dormant season - irrigation not needed. Trees are resting for winter."
+	} else if isSaturated {
+		recommendation.WeatherForecast = "Soil saturated from recent rainfall - no irrigation needed."
+	} else if weather.RainNext24h > 10 {
 		recommendation.WeatherForecast = "Heavy rain expected - delay irrigation"
 	} else if weather.RainNext24h > 5 {
 		recommendation.WeatherForecast = "Moderate rain expected"
