@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -31,7 +32,83 @@ func GetIrrigationRecommendation(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, recommendation)
+	// Enrich response with climate profile metadata for UI transparency
+	climateService := services.NewClimateProfileService()
+	profile, err := climateService.GetOrCreateProfile(uint(parcelID))
+
+	// Get parcel for latitude extraction
+	var parcel models.Parcel
+	var latitude float64
+	if err := irrigationService.DB.First(&parcel, parcelID).Error; err == nil {
+		// Extract latitude from GeoJSON
+		latitude = extractLatitudeForResponse(parcel.GeoJSON)
+	}
+
+	// Build enriched response
+	response := map[string]interface{}{
+		// Include all recommendation fields
+		"id":                      recommendation.ID,
+		"parcel_id":               recommendation.ParcelID,
+		"calculation_date":        recommendation.CalculationDate,
+		"should_irrigate":         recommendation.ShouldIrrigate,
+		"urgency_level":           recommendation.UrgencyLevel,
+		"recommended_amount":      recommendation.RecommendedAmount,
+		"recommended_liters_tree": recommendation.RecommendedLitersTree,
+		"next_irrigation_date":    recommendation.NextIrrigationDate,
+		"et0":                     recommendation.ET0,
+		"kc":                      recommendation.Kc,
+		"etc":                     recommendation.ETc,
+		"rainfall":                recommendation.Rainfall,
+		"effective_rainfall":      recommendation.EffectiveRainfall,
+		"irrigation_applied":      recommendation.IrrigationApplied,
+		"water_balance":           recommendation.WaterBalance,
+		"cumulative_deficit":      recommendation.CumulativeDeficit,
+		"soil_moisture_estimate":  recommendation.SoilMoistureEstimate,
+		"stress_level":            recommendation.StressLevel,
+		"growth_stage":            recommendation.GrowthStage,
+		"weather_forecast":        recommendation.WeatherForecast,
+		"deficit_strategy":        recommendation.DeficitStrategy,
+		"deficit_reduction":       recommendation.DeficitReduction,
+	}
+
+	// Add climate profile metadata if available
+	if err == nil && profile != nil {
+		response["climate_profile"] = map[string]interface{}{
+			"data_source":          profile.DataSource,
+			"data_points":          profile.DataPoints,
+			"confidence_score":     profile.ConfidenceScore,
+			"latitude":             latitude,
+			"dormancy_start_month": profile.DormancyStartMonth,
+			"dormancy_end_month":   profile.DormancyEndMonth,
+			"last_calculated":      profile.LastCalculated,
+		}
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// extractLatitudeForResponse extracts latitude from PostGISGeoJSON for API response
+func extractLatitudeForResponse(geojson models.PostGISGeoJSON) float64 {
+	if len(geojson) == 0 {
+		return 0
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal(geojson, &data); err != nil {
+		return 0
+	}
+
+	if coords, ok := data["coordinates"].([]interface{}); ok && len(coords) > 0 {
+		if ring, ok := coords[0].([]interface{}); ok && len(ring) > 0 {
+			if point, ok := ring[0].([]interface{}); ok && len(point) >= 2 {
+				if lat, ok := point[1].(float64); ok {
+					return lat
+				}
+			}
+		}
+	}
+
+	return 0
 }
 
 // LogIrrigationEvent logs a new irrigation event
