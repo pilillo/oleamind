@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Edit2, Trash2, Filter, Download } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { useTranslation } from 'react-i18next'
 import { harvestService, type HarvestLog } from '../../services/harvestService'
 
 interface HarvestHistoryTableProps {
@@ -8,6 +10,7 @@ interface HarvestHistoryTableProps {
 }
 
 export function HarvestHistoryTable({ refreshTrigger, onEdit }: HarvestHistoryTableProps) {
+    const { t } = useTranslation()
     const [harvests, setHarvests] = useState<HarvestLog[]>([])
     const [loading, setLoading] = useState(true)
     const [startDate, setStartDate] = useState(
@@ -32,13 +35,13 @@ export function HarvestHistoryTable({ refreshTrigger, onEdit }: HarvestHistoryTa
     }
 
     const handleDelete = async (id: number) => {
-        if (!window.confirm('Are you sure you want to delete this harvest log?')) return
+        if (!window.confirm(t('harvest.delete_confirm'))) return
         try {
             await harvestService.deleteHarvest(id)
             fetchHarvests()
-        } catch (err) {
-            console.error('Failed to delete harvest', err)
-            alert('Failed to delete harvest')
+            toast.success(t('harvest.deleted_success'))
+        } catch {
+            toast.error(t('harvest.delete_failed'))
         }
     }
 
@@ -69,7 +72,7 @@ export function HarvestHistoryTable({ refreshTrigger, onEdit }: HarvestHistoryTa
             <div className="p-4 border-b border-gray-100 flex flex-wrap gap-4 justify-between items-center bg-gray-50">
                 <div className="flex items-center gap-2">
                     <Filter size={18} className="text-gray-500" />
-                    <span className="text-sm font-medium text-gray-700">Filters:</span>
+                    <span className="text-sm font-medium text-gray-700">{t('harvest.filters')}:</span>
                     <input
                         type="date"
                         value={startDate}
@@ -89,7 +92,7 @@ export function HarvestHistoryTable({ refreshTrigger, onEdit }: HarvestHistoryTa
                     className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
                     <Download size={16} />
-                    Export CSV
+                    {t('harvest.export_csv')}
                 </button>
             </div>
 
@@ -97,26 +100,26 @@ export function HarvestHistoryTable({ refreshTrigger, onEdit }: HarvestHistoryTa
                 <table className="w-full text-sm text-left">
                     <thead className="bg-gray-50 text-gray-600 font-medium border-b border-gray-200">
                         <tr>
-                            <th className="px-6 py-3">Date</th>
-                            <th className="px-6 py-3">Parcel</th>
-                            <th className="px-6 py-3">Quantity (kg)</th>
-                            <th className="px-6 py-3">Quality</th>
-                            <th className="px-6 py-3">Cultivar</th>
-                            <th className="px-6 py-3">Method</th>
-                            <th className="px-6 py-3 text-right">Actions</th>
+                            <th className="px-6 py-3">{t('harvest.date')}</th>
+                            <th className="px-6 py-3">{t('harvest.parcel')}</th>
+                            <th className="px-6 py-3">{t('harvest.quantity_kg')}</th>
+                            <th className="px-6 py-3">{t('harvest.quality')}</th>
+                            <th className="px-6 py-3">{t('harvest.cultivar')}</th>
+                            <th className="px-6 py-3">{t('harvest.method')}</th>
+                            <th className="px-6 py-3 text-right">{t('harvest.actions')}</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                         {loading ? (
                             <tr>
                                 <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                                    Loading harvest history...
+                                    {t('harvest.loading_history')}
                                 </td>
                             </tr>
                         ) : harvests.length === 0 ? (
                             <tr>
                                 <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                                    No harvest logs found for this period.
+                                    {t('harvest.no_logs_found')}
                                 </td>
                             </tr>
                         ) : (

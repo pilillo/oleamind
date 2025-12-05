@@ -237,8 +237,6 @@ export const millService = {
       source_delivery_ids: sourceDeliveryIds,
     }
 
-    console.log('Sending payload:', JSON.stringify(payload, null, 2))
-
     const response = await apiCall('/oil-batches', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -249,10 +247,8 @@ export const millService = {
       let errorMessage = 'Failed to create oil batch'
       try {
         const errorData = await response.json()
-        console.error('Backend error response:', errorData)
         errorMessage = errorData.error || errorMessage
-      } catch (e) {
-        console.error('Failed to parse error response:', e)
+      } catch {
         errorMessage = `HTTP ${response.status}: ${response.statusText}`
       }
       throw new Error(errorMessage)

@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react'
+import toast from 'react-hot-toast'
+import { useTranslation } from 'react-i18next'
 import { userService, type User, type CreateUserData, type UpdateUserData } from '../services/userService'
 import { useAuth } from '../contexts/AuthContext'
 import { UserPlus, Edit2, CheckCircle, XCircle, Loader2, Search } from 'lucide-react'
 
 export default function Users() {
+    const { t } = useTranslation()
     const [users, setUsers] = useState<User[]>([])
     const [loading, setLoading] = useState(true)
     const [showCreateModal, setShowCreateModal] = useState(false)
@@ -30,8 +33,9 @@ export default function Users() {
             await userService.createUser(data)
             setShowCreateModal(false)
             fetchUsers()
+            toast.success(t('users.user_created'))
         } catch (err: any) {
-            alert(err.message)
+            toast.error(err.message || t('users.create_failed'))
         }
     }
 
@@ -40,8 +44,9 @@ export default function Users() {
             await userService.updateUser(id, data)
             setEditingUser(null)
             fetchUsers()
+            toast.success(t('users.user_updated'))
         } catch (err: any) {
-            alert(err.message)
+            toast.error(err.message || t('users.update_failed'))
         }
     }
 
@@ -53,8 +58,9 @@ export default function Users() {
                 await userService.activateUser(user.id)
             }
             fetchUsers()
+            toast.success(user.active ? t('users.user_deactivated') : t('users.user_activated'))
         } catch (err: any) {
-            alert(err.message)
+            toast.error(err.message || t('users.status_update_failed'))
         }
     }
 
@@ -90,15 +96,15 @@ export default function Users() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-                    <p className="text-gray-600 mt-1">Manage system users and their roles</p>
+                    <h1 className="text-2xl font-bold text-gray-900">{t('users.title')}</h1>
+                    <p className="text-gray-600 mt-1">{t('users.subtitle')}</p>
                 </div>
                 <button
                     onClick={() => setShowCreateModal(true)}
                     className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
                 >
                     <UserPlus size={20} />
-                    Add User
+                    {t('users.add_user')}
                 </button>
             </div>
 
@@ -109,7 +115,7 @@ export default function Users() {
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                         <input
                             type="text"
-                            placeholder="Search users..."
+                            placeholder={t('users.search_placeholder')}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
@@ -120,20 +126,20 @@ export default function Users() {
                         onChange={(e) => setFilters({ ...filters, role: e.target.value })}
                         className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     >
-                        <option value="">All Roles</option>
-                        <option value="owner">Owner</option>
-                        <option value="agronomist">Agronomist</option>
-                        <option value="mill_operator">Mill Operator</option>
-                        <option value="viewer">Viewer</option>
+                        <option value="">{t('users.all_roles')}</option>
+                        <option value="owner">{t('users.role_owner')}</option>
+                        <option value="agronomist">{t('users.role_agronomist')}</option>
+                        <option value="mill_operator">{t('users.role_mill_operator')}</option>
+                        <option value="viewer">{t('users.role_viewer')}</option>
                     </select>
                     <select
                         value={filters.active}
                         onChange={(e) => setFilters({ ...filters, active: e.target.value })}
                         className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     >
-                        <option value="">All Status</option>
-                        <option value="true">Active</option>
-                        <option value="false">Inactive</option>
+                        <option value="">{t('users.all_status')}</option>
+                        <option value="true">{t('users.status_active')}</option>
+                        <option value="false">{t('users.status_inactive')}</option>
                     </select>
                 </div>
             </div>
@@ -143,11 +149,11 @@ export default function Users() {
                 <table className="w-full">
                     <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Login</th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('users.user')}</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('users.role')}</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('users.status')}</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('users.last_login')}</th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{t('users.actions')}</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
@@ -176,18 +182,18 @@ export default function Users() {
                                     <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full ${user.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                                         }`}>
                                         {user.active ? <CheckCircle size={14} /> : <XCircle size={14} />}
-                                        {user.active ? 'Active' : 'Inactive'}
+                                        {user.active ? t('users.status_active') : t('users.status_inactive')}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 text-sm text-gray-500">
-                                    {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never'}
+                                    {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : t('users.never')}
                                 </td>
                                 <td className="px-6 py-4 text-right">
                                     <div className="flex items-center justify-end gap-2">
                                         <button
                                             onClick={() => setEditingUser(user)}
                                             className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                                            title="Edit user"
+                                            title={t('users.edit_user')}
                                         >
                                             <Edit2 size={18} />
                                         </button>
@@ -197,7 +203,7 @@ export default function Users() {
                                                 ? 'text-red-600 hover:bg-red-50'
                                                 : 'text-green-600 hover:bg-green-50'
                                                 }`}
-                                            title={user.active ? 'Deactivate' : 'Activate'}
+                                            title={user.active ? t('users.deactivate') : t('users.activate')}
                                         >
                                             {user.active ? <XCircle size={18} /> : <CheckCircle size={18} />}
                                         </button>
@@ -210,7 +216,7 @@ export default function Users() {
 
                 {filteredUsers.length === 0 && (
                     <div className="text-center py-12">
-                        <p className="text-gray-500">No users found</p>
+                        <p className="text-gray-500">{t('users.no_users')}</p>
                     </div>
                 )}
             </div>
@@ -243,6 +249,7 @@ interface UserModalProps {
 }
 
 function UserModal({ user, onClose, onSave }: UserModalProps) {
+    const { t } = useTranslation()
     const { user: currentUser } = useAuth()
     
     // Get farms where current user is owner
@@ -287,7 +294,7 @@ function UserModal({ user, onClose, onSave }: UserModalProps) {
         
         // Validate farmId
         if (formData.farmId === 0) {
-            alert('Please select a farm')
+            toast.error(t('users.select_farm'))
             return
         }
         
@@ -303,13 +310,13 @@ function UserModal({ user, onClose, onSave }: UserModalProps) {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                    {user ? 'Edit User' : 'Create User'}
+                    {user ? t('users.edit_user') : t('users.create_user')}
                 </h2>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">{t('users.first_name')}</label>
                             <input
                                 type="text"
                                 value={formData.firstName}
@@ -319,7 +326,7 @@ function UserModal({ user, onClose, onSave }: UserModalProps) {
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">{t('users.last_name')}</label>
                             <input
                                 type="text"
                                 value={formData.lastName}
@@ -331,7 +338,7 @@ function UserModal({ user, onClose, onSave }: UserModalProps) {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">{t('users.email')}</label>
                         <input
                             type="email"
                             value={formData.email}
@@ -344,7 +351,7 @@ function UserModal({ user, onClose, onSave }: UserModalProps) {
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Farm <span className="text-red-500">*</span>
+                            {t('users.farm')} <span className="text-red-500">*</span>
                         </label>
                         <select
                             value={formData.farmId}
@@ -353,7 +360,7 @@ function UserModal({ user, onClose, onSave }: UserModalProps) {
                             disabled={!!user}
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100"
                         >
-                            <option value={0}>Select a farm</option>
+                            <option value={0}>{t('users.select_farm')}</option>
                             {ownedFarms.map((farm) => (
                                 <option key={farm.id} value={farm.id}>
                                     {farm.name}
@@ -361,16 +368,16 @@ function UserModal({ user, onClose, onSave }: UserModalProps) {
                             ))}
                         </select>
                         {ownedFarms.length === 0 && (
-                            <p className="text-xs text-red-500 mt-1">You don't own any farms</p>
+                            <p className="text-xs text-red-500 mt-1">{t('users.no_farms_owned')}</p>
                         )}
                         {user && (
-                            <p className="text-xs text-gray-500 mt-1">Farm cannot be changed when editing</p>
+                            <p className="text-xs text-gray-500 mt-1">{t('users.farm_cannot_change')}</p>
                         )}
                     </div>
 
                     {!user && (
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">{t('users.password')}</label>
                             <input
                                 type="password"
                                 value={formData.password}
@@ -383,18 +390,18 @@ function UserModal({ user, onClose, onSave }: UserModalProps) {
                     )}
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">{t('users.role')}</label>
                         <select
                             value={formData.role}
                             onChange={(e) => setFormData({ ...formData, role: e.target.value as 'agronomist' | 'mill_operator' | 'viewer' })}
                             required
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                         >
-                            <option value="viewer">Viewer</option>
-                            <option value="agronomist">Agronomist</option>
-                            <option value="mill_operator">Mill Operator</option>
+                            <option value="viewer">{t('users.role_viewer')}</option>
+                            <option value="agronomist">{t('users.role_agronomist')}</option>
+                            <option value="mill_operator">{t('users.role_mill_operator')}</option>
                         </select>
-                        <p className="text-xs text-gray-500 mt-1">Note: Only one owner per farm. New users cannot be assigned owner role.</p>
+                        <p className="text-xs text-gray-500 mt-1">{t('users.role_note')}</p>
                     </div>
 
                     <div className="flex gap-3 pt-4">
@@ -403,14 +410,14 @@ function UserModal({ user, onClose, onSave }: UserModalProps) {
                             onClick={onClose}
                             className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
                         >
-                            Cancel
+                            {t('users.cancel')}
                         </button>
                         <button
                             type="submit"
                             disabled={loading}
                             className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50"
                         >
-                            {loading ? 'Saving...' : user ? 'Update' : 'Create'}
+                            {loading ? t('users.saving') : user ? t('users.update') : t('users.create')}
                         </button>
                     </div>
                 </form>

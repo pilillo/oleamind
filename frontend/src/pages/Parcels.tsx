@@ -7,6 +7,7 @@ import 'leaflet/dist/leaflet.css'
 import 'leaflet-draw/dist/leaflet.draw.css'
 import 'leaflet-draw' // Ensure L.Draw is attached to L
 import { TreeDeciduous, MapPin, Ruler, Trash2, Edit2, Save, X, Plus, Satellite, Cloud, MousePointerClick, Trees, Droplets, Wind, Thermometer, ChevronLeft, ChevronRight, GripVertical } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { apiCall } from '../config'
 import { useAuth } from '../contexts/AuthContext'
 import { SatelliteInsights } from '../components/satellite/SatelliteInsights'
@@ -88,19 +89,14 @@ function DrawingManager({ isCreating, onCreated }: { isCreating: boolean, onCrea
 function MapClickHandler({ onMapClick, enabled }: { onMapClick: (latlng: L.LatLng) => void, enabled: boolean }) {
   const map = useMapEvents({
     click: (e) => {
-      console.log('Map clicked:', { enabled, latlng: e.latlng })
       if (enabled) {
-        console.log('Calling onMapClick callback')
         onMapClick(e.latlng)
-      } else {
-        console.log('Not calling onMapClick - enabled is false')
       }
     }
   })
 
   // Change cursor when in drawing mode
   useEffect(() => {
-    console.log('MapClickHandler cursor effect:', { enabled })
     if (map) {
       const container = map.getContainer()
       if (enabled) {
@@ -345,7 +341,7 @@ function Parcels() {
 
     // Validate farm selection
     if (selectedFarmId === 0) {
-      alert('Please select a farm')
+      toast.error('Please select a farm')
       return
     }
 
@@ -376,12 +372,10 @@ function Parcels() {
         }
       } else {
         const error = await response.json()
-        console.error('Failed to create parcel:', error)
-        alert(`Failed to create parcel: ${error.error || 'Unknown error'}`)
+        toast.error(`Failed to create parcel: ${error.error || 'Unknown error'}`)
       }
-    } catch (err) {
-      console.error('Error creating parcel:', err)
-      alert('Failed to create parcel. Check console for details.')
+    } catch {
+      toast.error('Failed to create parcel')
     }
   }
 
@@ -400,17 +394,12 @@ function Parcels() {
   const handleUpdateParcel = async () => {
     if (!selectedParcel) return
 
-    console.log('=== handleUpdateParcel called ===')
-    console.log('editVarieties:', editVarieties)
-
     // Clean up varieties for submission and auto-calculate tree_count from geometry
     const varietiesToSubmit = editVarieties.map(v => ({
       ...v,
       tree_count: v.geojson ? getTreeCount(v.geojson) : 0,  // Auto-calculate from geometry
       area: parseFloat(v.area) || 0
     }))
-
-    console.log('varietiesToSubmit:', varietiesToSubmit)
 
     const payload = {
       ...selectedParcel,
@@ -419,8 +408,6 @@ function Parcels() {
       trees_count: parseInt(editTrees) || 0,
       varieties: varietiesToSubmit
     }
-
-    console.log('Sending payload to backend:', JSON.stringify(payload, null, 2))
 
     try {
       const response = await apiCall(`/parcels/${selectedParcel.ID}`, {
@@ -431,20 +418,16 @@ function Parcels() {
 
       if (response.ok) {
         const updatedParcel = await response.json()
-        console.log('Backend returned updated parcel:', updatedParcel)
-        console.log('Updated parcel varieties:', updatedParcel.varieties)
         setParcels(parcels.map(p => p.ID === updatedParcel.ID ? updatedParcel : p))
         setSelectedParcel(updatedParcel)
         setIsEditing(false)
         setDrawingVarietyIndex(null) // Reset drawing mode
       } else {
         const errorText = await response.text()
-        console.error('Save failed:', errorText)
-        alert('Failed to update parcel: ' + errorText)
+        toast.error('Failed to update parcel: ' + errorText)
       }
-    } catch (err) {
-      console.error('Error updating parcel:', err)
-      alert('Failed to update parcel')
+    } catch {
+      toast.error('Failed to update parcel')
     }
   }
 
@@ -462,48 +445,27 @@ function Parcels() {
         setShowInfoPanel(false)
         setNdviData(null)
       } else {
-        alert('Failed to delete parcel')
+        toast.error('Failed to delete parcel')
       }
-    } catch (err) {
-      console.error('Error deleting parcel:', err)
-      alert('Failed to delete parcel')
+    } catch {
+      toast.error('Failed to delete parcel')
     }
   }
 
   const processSatellite = async (parcelId: number) => {
     try {
-      // setShowSatellite(true)
-      console.log('Processing NDVI for parcel:', parcelId)
-
       const response = await apiCall(`/parcels/${parcelId}/satellite`, {
         method: 'POST',
       })
       const data = await response.json()
-      console.log('NDVI Response:', {
-        status: data.status,
-        is_cached: data.is_cached,
-        is_stale: data.is_stale,
-        refreshing: data.refreshing,
-        pixels: data.pixels_count,
-        hasImage: !!data.ndvi_image,
-        imageLength: data.ndvi_image?.length
-      })
 
       if (data.status === 'success') {
         setNdviData({ ...data, parcelId })
         setSatelliteLastUpdated(Date.now())
-        console.log('NDVI data set:', { parcelId, hasImage: !!data.ndvi_image })
-
-        // No alert popup - data is displayed in the panel automatically
-      } else {
-        console.error(`NDVI Error: ${data.message}`)
-        // Only show alert on actual error (not on normal operations)
+        // Data is displayed in the panel automatically
       }
-    } catch (err) {
-      console.error('NDVI Error:', err)
+    } catch {
       // Silent failure - user will see no NDVI data in panel
-    } finally {
-      // setShowSatellite(false)
     }
   }
 
@@ -527,16 +489,10 @@ function Parcels() {
   }
 
   const startDrawingForVariety = (index: number) => {
-    console.log('startDrawingForVariety called:', { index, currentDrawingIndex: drawingVarietyIndex })
-    console.log('Current editVarieties:', editVarieties)
-    console.log('Variety at index:', editVarieties[index])
-
     // Toggle drawing mode - if already drawing for this variety, exit
     if (drawingVarietyIndex === index) {
-      console.log('Exiting drawing mode')
       setDrawingVarietyIndex(null)
     } else {
-      console.log('Entering drawing mode for variety index:', index)
       setDrawingVarietyIndex(index)
     }
   }
@@ -556,10 +512,7 @@ function Parcels() {
   }
 
   const handleMapClick = useCallback((latlng: L.LatLng) => {
-    console.log('handleMapClick called:', { drawingVarietyIndex, latlng })
-
     if (drawingVarietyIndex === null) {
-      console.log('Ignoring click - not in drawing mode')
       return
     }
 
@@ -579,7 +532,7 @@ function Parcels() {
         }
 
         if (!isInside) {
-          alert('⚠️ Trees can only be placed inside the parcel boundary')
+          toast.error('Trees can only be placed inside the parcel boundary')
           return
         }
       } catch (e) {
@@ -593,22 +546,16 @@ function Parcels() {
       coordinates: [latlng.lng, latlng.lat]
     }
 
-    console.log('Tree placed at:', { drawingVarietyIndex, latlng, pointGeometry })
-
     // Use functional setState to ensure we have the latest state
     setEditVarieties(prevVarieties => {
       const newVarieties = [...prevVarieties]
       const currentVariety = newVarieties[drawingVarietyIndex]
-
-      console.log('Current variety before update:', currentVariety)
 
       // If there's already geometry, we need to combine them
       if (currentVariety.geojson) {
         const existingGeojson = typeof currentVariety.geojson === 'string'
           ? JSON.parse(currentVariety.geojson)
           : currentVariety.geojson
-
-        console.log('Existing geometry:', existingGeojson)
 
         // Create or update GeometryCollection
         if (existingGeojson.type === 'GeometryCollection') {
@@ -647,14 +594,11 @@ function Parcels() {
         }
       }
 
-      console.log('Updated varieties:', newVarieties)
-      console.log('Updated variety geometry:', newVarieties[drawingVarietyIndex].geojson)
       return newVarieties
     })
-  }, [drawingVarietyIndex, selectedParcel])  // Removed isPointInPolygon as it's a stable function
+  }, [drawingVarietyIndex, selectedParcel])
 
   const clearVarietyGeometry = (index: number) => {
-    console.log('clearVarietyGeometry called:', { index, currentVarieties: editVarieties })
     const newVarieties = [...editVarieties]
     // Add a timestamp to force re-render
     newVarieties[index] = {
@@ -662,7 +606,6 @@ function Parcels() {
       geojson: null,
       _cleared: Date.now() // Force unique key generation
     }
-    console.log('After clearing:', newVarieties)
     setEditVarieties(newVarieties)
   }
 

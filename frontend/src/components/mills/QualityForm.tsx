@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Save, X, Loader2, FlaskConical } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { useTranslation } from 'react-i18next'
 import { millService, type OilQualityAnalysis, type OilBatch } from '../../services/millService'
 
 interface QualityFormProps {
@@ -8,6 +10,7 @@ interface QualityFormProps {
 }
 
 export function QualityForm({ onSuccess, onCancel }: QualityFormProps) {
+    const { t } = useTranslation()
     const [loading, setLoading] = useState(false)
     const [batches, setBatches] = useState<OilBatch[]>([])
 
@@ -47,10 +50,10 @@ export function QualityForm({ onSuccess, onCancel }: QualityFormProps) {
         setLoading(true)
         try {
             await millService.createQualityAnalysis(formData as OilQualityAnalysis)
+            toast.success('Quality analysis saved successfully')
             onSuccess()
-        } catch (err) {
-            console.error('Failed to save analysis', err)
-            alert('Failed to save analysis')
+        } catch {
+            toast.error('Failed to save analysis')
         } finally {
             setLoading(false)
         }

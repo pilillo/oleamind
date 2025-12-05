@@ -30,10 +30,10 @@ function Sidebar() {
     { path: '/parcels', label: t('nav.parcels'), icon: Map, roles: [] },
     { path: '/inventory', label: t('nav.inventory'), icon: Package, roles: [] },
     { path: '/operations', label: t('nav.operations'), icon: ClipboardList, roles: [] },
-    { path: '/harvest', label: 'Harvest', icon: ClipboardList, roles: ['owner', 'agronomist'] },
-    { path: '/mills', label: 'Mills', icon: Building2, roles: ['owner', 'mill_operator'] },
-    { path: '/analytics', label: 'Analytics', icon: BarChart2, roles: [] },
-    { path: '/users', label: 'Users', icon: UsersIcon, roles: ['owner'] },
+    { path: '/harvest', label: t('nav.harvest'), icon: ClipboardList, roles: ['owner', 'agronomist'] },
+    { path: '/mills', label: t('nav.mills'), icon: Building2, roles: ['owner', 'mill_operator'] },
+    { path: '/analytics', label: t('nav.analytics'), icon: BarChart2, roles: [] },
+    { path: '/users', label: t('nav.users'), icon: UsersIcon, roles: ['owner'] },
   ]
 
   const toggleLanguage = () => {
@@ -112,6 +112,27 @@ function Sidebar() {
   )
 }
 
+function HeaderTitle({ pathname }: { pathname: string }) {
+  const { t } = useTranslation()
+  
+  const titleMap: Record<string, string> = {
+    '/dashboard': t('nav.dashboard'),
+    '/parcels': t('nav.parcels'),
+    '/inventory': t('nav.inventory'),
+    '/operations': t('nav.operations'),
+    '/harvest': t('nav.harvest'),
+    '/mills': t('nav.mills'),
+    '/analytics': t('nav.analytics'),
+    '/users': t('nav.users'),
+  }
+  
+  return (
+    <h1 className="text-xl font-semibold text-gray-800">
+      {titleMap[pathname] || pathname.slice(1)}
+    </h1>
+  )
+}
+
 function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation()
   const publicRoutes = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email']
@@ -125,9 +146,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8 shadow-sm z-10">
-          <h1 className="text-xl font-semibold text-gray-800 capitalize">
-            {location.pathname === '/dashboard' ? 'Dashboard' : location.pathname.slice(1)}
-          </h1>
+          <HeaderTitle pathname={location.pathname} />
         </header>
         <main className="flex-1 overflow-auto p-6">
           {children}

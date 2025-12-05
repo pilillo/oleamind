@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
 import { Save, X, Loader2, Building2, CheckCircle, XCircle } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { useTranslation } from 'react-i18next'
 import { millService, type Mill } from '../../services/millService'
 
 interface MillFormProps {
@@ -9,6 +11,7 @@ interface MillFormProps {
 }
 
 export function MillForm({ onSuccess, onCancel, initialData }: MillFormProps) {
+    const { t } = useTranslation()
     const [loading, setLoading] = useState(false)
     const [formData, setFormData] = useState<Partial<Mill>>({
         name: '',
@@ -38,10 +41,10 @@ export function MillForm({ onSuccess, onCancel, initialData }: MillFormProps) {
             } else {
                 await millService.createMill(formData as Mill)
             }
+            toast.success(t('mills.mill.save_success'))
             onSuccess()
-        } catch (err) {
-            console.error('Failed to save mill', err)
-            alert('Failed to save mill')
+        } catch {
+            toast.error(t('mills.mill.save_failed'))
         } finally {
             setLoading(false)
         }
@@ -53,7 +56,7 @@ export function MillForm({ onSuccess, onCancel, initialData }: MillFormProps) {
                 <div className="flex items-center gap-3">
                     <Building2 className="text-green-600" size={24} />
                     <h3 className="text-lg font-semibold text-gray-800">
-                        {initialData ? 'Edit Mill' : 'Register New Mill'}
+                        {initialData ? t('mills.mill.edit') : t('mills.mill.register_new')}
                     </h3>
                 </div>
                 <button type="button" onClick={onCancel} className="text-gray-400 hover:text-gray-600">
@@ -64,113 +67,113 @@ export function MillForm({ onSuccess, onCancel, initialData }: MillFormProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Basic Information */}
                 <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Mill Name *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('mills.mill.name')} *</label>
                     <input
                         type="text"
                         required
                         value={formData.name || ''}
                         onChange={e => setFormData({ ...formData, name: e.target.value })}
-                        placeholder="e.g. Oleificio Rossi"
+                        placeholder={t('mills.mill.name_placeholder')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     />
                 </div>
 
                 {/* Address Information */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('mills.mill.address')}</label>
                     <input
                         type="text"
                         value={formData.address || ''}
                         onChange={e => setFormData({ ...formData, address: e.target.value })}
-                        placeholder="Street address"
+                        placeholder={t('mills.mill.address_placeholder')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     />
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('mills.mill.city')}</label>
                     <input
                         type="text"
                         value={formData.city || ''}
                         onChange={e => setFormData({ ...formData, city: e.target.value })}
-                        placeholder="City name"
+                        placeholder={t('mills.mill.city_placeholder')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     />
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Region</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('mills.mill.region')}</label>
                     <input
                         type="text"
                         value={formData.region || ''}
                         onChange={e => setFormData({ ...formData, region: e.target.value })}
-                        placeholder="e.g. Umbria"
+                        placeholder={t('mills.mill.region_placeholder')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     />
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Country *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('mills.mill.country')} *</label>
                     <input
                         type="text"
                         required
                         value={formData.country || ''}
                         onChange={e => setFormData({ ...formData, country: e.target.value })}
-                        placeholder="e.g. Italy"
+                        placeholder={t('mills.mill.country_placeholder')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     />
                 </div>
 
                 {/* Contact Information */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('mills.mill.phone')}</label>
                     <input
                         type="tel"
                         value={formData.phone || ''}
                         onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                        placeholder="+39 123 456 7890"
+                        placeholder={t('mills.mill.phone_placeholder')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     />
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('mills.mill.email')}</label>
                     <input
                         type="email"
                         value={formData.email || ''}
                         onChange={e => setFormData({ ...formData, email: e.target.value })}
-                        placeholder="contact@mill.com"
+                        placeholder={t('mills.mill.email_placeholder')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     />
                 </div>
 
                 <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('mills.mill.contact_person')}</label>
                     <input
                         type="text"
                         value={formData.contact_person || ''}
                         onChange={e => setFormData({ ...formData, contact_person: e.target.value })}
-                        placeholder="Primary contact name"
+                        placeholder={t('mills.mill.contact_person_placeholder')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     />
                 </div>
 
                 {/* Technical Information */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Mill Type</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('mills.mill.mill_type')}</label>
                     <select
                         value={formData.mill_type || 'traditional'}
                         onChange={e => setFormData({ ...formData, mill_type: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     >
-                        <option value="traditional">Traditional</option>
-                        <option value="continuous">Continuous</option>
-                        <option value="cooperative">Cooperative</option>
+                        <option value="traditional">{t('mills.mill.type_traditional')}</option>
+                        <option value="continuous">{t('mills.mill.type_continuous')}</option>
+                        <option value="cooperative">{t('mills.mill.type_cooperative')}</option>
                     </select>
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Processing Capacity (kg/hour)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('mills.mill.capacity')}</label>
                     <input
                         type="number"
                         min="0"
@@ -179,14 +182,14 @@ export function MillForm({ onSuccess, onCancel, initialData }: MillFormProps) {
                             const value = e.target.value
                             setFormData({ ...formData, capacity: value === '' ? 0 : parseFloat(value) || 0 })
                         }}
-                        placeholder="500"
+                        placeholder={t('mills.mill.capacity_placeholder')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     />
                 </div>
 
                 {/* Certifications */}
                 <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-3">Certifications</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">{t('mills.mill.certifications')}</label>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
                             <input
@@ -201,7 +204,7 @@ export function MillForm({ onSuccess, onCancel, initialData }: MillFormProps) {
                                 ) : (
                                     <XCircle size={18} className="text-gray-300" />
                                 )}
-                                <span className="text-sm font-medium">Organic</span>
+                                <span className="text-sm font-medium">{t('mills.mill.cert_organic')}</span>
                             </div>
                         </label>
 
@@ -218,7 +221,7 @@ export function MillForm({ onSuccess, onCancel, initialData }: MillFormProps) {
                                 ) : (
                                     <XCircle size={18} className="text-gray-300" />
                                 )}
-                                <span className="text-sm font-medium">DOP</span>
+                                <span className="text-sm font-medium">{t('mills.mill.cert_dop')}</span>
                             </div>
                         </label>
 
@@ -235,7 +238,7 @@ export function MillForm({ onSuccess, onCancel, initialData }: MillFormProps) {
                                 ) : (
                                     <XCircle size={18} className="text-gray-300" />
                                 )}
-                                <span className="text-sm font-medium">IGP</span>
+                                <span className="text-sm font-medium">{t('mills.mill.cert_igp')}</span>
                             </div>
                         </label>
                     </div>
@@ -243,12 +246,12 @@ export function MillForm({ onSuccess, onCancel, initialData }: MillFormProps) {
 
                 {/* Notes */}
                 <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('mills.mill.notes')}</label>
                     <textarea
                         value={formData.notes || ''}
                         onChange={e => setFormData({ ...formData, notes: e.target.value })}
                         rows={3}
-                        placeholder="Additional notes about the mill..."
+                        placeholder={t('mills.mill.notes_placeholder')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     />
                 </div>
@@ -260,7 +263,7 @@ export function MillForm({ onSuccess, onCancel, initialData }: MillFormProps) {
                     onClick={onCancel}
                     className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                 >
-                    Cancel
+                    {t('mills.mill.cancel')}
                 </button>
                 <button
                     type="submit"
@@ -268,7 +271,7 @@ export function MillForm({ onSuccess, onCancel, initialData }: MillFormProps) {
                     className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
                 >
                     {loading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                    {initialData ? 'Update Mill' : 'Register Mill'}
+                    {initialData ? t('mills.mill.update') : t('mills.mill.register')}
                 </button>
             </div>
         </form>

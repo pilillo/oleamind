@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import toast from 'react-hot-toast'
 import { useAuth } from '../contexts/AuthContext'
 import { apiCall } from '../config'
 import { Package, AlertTriangle, Calendar, DollarSign, Filter, Search, Plus, Edit2, Trash2, X } from 'lucide-react'
@@ -108,11 +109,10 @@ function Inventory() {
         closeModal()
       } else {
         const error = await response.json()
-        alert(`Error: ${error.error || 'Failed to save item'}`)
+        toast.error(error.error || 'Failed to save item')
       }
-    } catch (err) {
-      console.error(err)
-      alert('Failed to save item')
+    } catch {
+      toast.error('Failed to save item')
     }
   }
 
@@ -127,11 +127,10 @@ function Inventory() {
       if (response.ok) {
         fetchInventory()
       } else {
-        alert('Failed to delete item')
+        toast.error('Failed to delete item')
       }
-    } catch (err) {
-      console.error(err)
-      alert('Failed to delete item')
+    } catch {
+      toast.error('Failed to delete item')
     }
   }
 

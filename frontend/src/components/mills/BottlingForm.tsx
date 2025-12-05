@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Save, X, Loader2, Wine } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { useTranslation } from 'react-i18next'
 import { millService, type OilBottling, type OilBatch } from '../../services/millService'
 
 interface BottlingFormProps {
@@ -8,6 +10,7 @@ interface BottlingFormProps {
 }
 
 export function BottlingForm({ onSuccess, onCancel }: BottlingFormProps) {
+    const { t } = useTranslation()
     const [loading, setLoading] = useState(false)
     const [batches, setBatches] = useState<OilBatch[]>([])
 
@@ -58,10 +61,10 @@ export function BottlingForm({ onSuccess, onCancel }: BottlingFormProps) {
         setLoading(true)
         try {
             await millService.createBottling(formData as OilBottling)
+            toast.success('Bottling recorded successfully')
             onSuccess()
-        } catch (err) {
-            console.error('Failed to save bottling', err)
-            alert('Failed to save bottling')
+        } catch {
+            toast.error('Failed to save bottling')
         } finally {
             setLoading(false)
         }

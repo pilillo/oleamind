@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Truck, Edit, Trash2, MapPin, Calendar, Scale, Thermometer } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { useTranslation } from 'react-i18next'
 import { millService, type OliveDelivery } from '../../services/millService'
 
 interface DeliveryListProps {
@@ -8,6 +10,7 @@ interface DeliveryListProps {
 }
 
 export function DeliveryList({ refreshTrigger, onEdit }: DeliveryListProps) {
+    const { t } = useTranslation()
     const [deliveries, setDeliveries] = useState<OliveDelivery[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -38,9 +41,9 @@ export function DeliveryList({ refreshTrigger, onEdit }: DeliveryListProps) {
         try {
             await millService.deleteDelivery(id)
             await fetchDeliveries()
-        } catch (err) {
-            console.error('Failed to delete delivery', err)
-            alert('Failed to delete delivery')
+            toast.success('Delivery deleted successfully')
+        } catch {
+            toast.error('Failed to delete delivery')
         }
     }
 

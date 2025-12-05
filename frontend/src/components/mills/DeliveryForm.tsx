@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Save, X, Loader2, Truck } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { useTranslation } from 'react-i18next'
 import { millService, type OliveDelivery, type Mill } from '../../services/millService'
 import { apiCall } from '../../config'
 
@@ -10,6 +12,7 @@ interface DeliveryFormProps {
 }
 
 export function DeliveryForm({ onSuccess, onCancel, initialData }: DeliveryFormProps) {
+    const { t } = useTranslation()
     const [loading, setLoading] = useState(false)
     const [mills, setMills] = useState<Mill[]>([])
     const [parcels, setParcels] = useState<any[]>([])
@@ -55,10 +58,10 @@ export function DeliveryForm({ onSuccess, onCancel, initialData }: DeliveryFormP
             } else {
                 await millService.createDelivery(formData as OliveDelivery)
             }
+            toast.success(t('mills.delivery.save_success'))
             onSuccess()
-        } catch (err) {
-            console.error('Failed to save delivery', err)
-            alert('Failed to save delivery')
+        } catch {
+            toast.error(t('mills.delivery.save_failed'))
         } finally {
             setLoading(false)
         }

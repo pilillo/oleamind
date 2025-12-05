@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import toast from 'react-hot-toast'
 import { apiCall } from '../config'
+import { useAuth } from '../contexts/AuthContext'
 import { Clipboard, Plus, Edit2, Trash2, X, DollarSign, Clock, Users, Wrench, Search, Filter } from 'lucide-react'
 
 interface Operation {
@@ -35,6 +37,7 @@ interface Parcel {
 
 function Operations() {
   const { t } = useTranslation()
+  const { user } = useAuth()
   const [operations, setOperations] = useState<Operation[]>([])
   const [parcels, setParcels] = useState<Parcel[]>([])
   const [filteredOperations, setFilteredOperations] = useState<Operation[]>([])
@@ -77,7 +80,6 @@ function Operations() {
       const response = await apiCall(`/operations`)
       const data = await response.json()
       if (Array.isArray(data)) {
-        console.log('✅ Operations page fetched:', data.length, 'operations')
         setOperations(data)
       }
     } catch (err) {
@@ -132,7 +134,7 @@ function Operations() {
     try {
       const payload = {
         ...formData,
-        farm_id: 1,
+        farm_id: user?.farms?.[0]?.id || 0,
       }
 
       const endpoint = editingOperation
@@ -150,11 +152,10 @@ function Operations() {
         closeModal()
       } else {
         const error = await response.json()
-        alert(`Error: ${error.error || 'Failed to save operation'}`)
+        toast.error(error.error || 'Failed to save operation')
       }
-    } catch (err) {
-      console.error(err)
-      alert('Failed to save operation')
+    } catch {
+      toast.error('Failed to save operation')
     }
   }
 
@@ -169,11 +170,10 @@ function Operations() {
       if (response.ok) {
         fetchOperations()
       } else {
-        alert('Failed to delete operation')
+        toast.error('Failed to delete operation')
       }
-    } catch (err) {
-      console.error(err)
-      alert('Failed to delete operation')
+    } catch {
+      toast.error('Failed to delete operation')
     }
   }
 

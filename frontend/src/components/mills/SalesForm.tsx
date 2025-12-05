@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Save, X, Loader2, DollarSign } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { useTranslation } from 'react-i18next'
 import { millService, type OilSale, type OilBatch } from '../../services/millService'
 
 interface SalesFormProps {
@@ -8,6 +10,7 @@ interface SalesFormProps {
 }
 
 export function SalesForm({ onSuccess, onCancel }: SalesFormProps) {
+    const { t } = useTranslation()
     const [loading, setLoading] = useState(false)
     const [batches, setBatches] = useState<OilBatch[]>([])
 
@@ -49,10 +52,10 @@ export function SalesForm({ onSuccess, onCancel }: SalesFormProps) {
         setLoading(true)
         try {
             await millService.createSale(formData as OilSale)
+            toast.success('Sale recorded successfully')
             onSuccess()
-        } catch (err) {
-            console.error('Failed to save sale', err)
-            alert('Failed to save sale')
+        } catch {
+            toast.error('Failed to save sale')
         } finally {
             setLoading(false)
         }

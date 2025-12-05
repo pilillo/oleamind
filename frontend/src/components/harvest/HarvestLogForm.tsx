@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Save, X, Loader2 } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { useTranslation } from 'react-i18next'
 import { harvestService, type HarvestLog } from '../../services/harvestService'
 import { apiCall } from '../../config'
 
@@ -10,6 +12,7 @@ interface HarvestLogFormProps {
 }
 
 export function HarvestLogForm({ onSuccess, onCancel, initialData }: HarvestLogFormProps) {
+    const { t } = useTranslation()
     const [loading, setLoading] = useState(false)
     const [parcels, setParcels] = useState<any[]>([])
     const [formData, setFormData] = useState<Partial<HarvestLog>>(() => {
@@ -66,10 +69,10 @@ export function HarvestLogForm({ onSuccess, onCancel, initialData }: HarvestLogF
             } else {
                 await harvestService.logHarvest(formData as HarvestLog)
             }
+            toast.success(t('harvest.saved_success'))
             onSuccess()
-        } catch (err) {
-            console.error('Failed to save harvest log', err)
-            alert('Failed to save harvest log')
+        } catch {
+            toast.error(t('harvest.save_failed'))
         } finally {
             setLoading(false)
         }
@@ -79,7 +82,7 @@ export function HarvestLogForm({ onSuccess, onCancel, initialData }: HarvestLogF
         <form onSubmit={handleSubmit} className="space-y-4 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-gray-800">
-                    {initialData ? 'Edit Harvest Log' : 'Log New Harvest'}
+                    {initialData ? t('harvest.edit_log') : t('harvest.log_new')}
                 </h3>
                 <button type="button" onClick={onCancel} className="text-gray-400 hover:text-gray-600">
                     <X size={20} />
@@ -88,7 +91,7 @@ export function HarvestLogForm({ onSuccess, onCancel, initialData }: HarvestLogF
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('harvest.date')}</label>
                     <input
                         type="date"
                         required
@@ -99,14 +102,14 @@ export function HarvestLogForm({ onSuccess, onCancel, initialData }: HarvestLogF
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Parcel</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('harvest.parcel')}</label>
                     <select
                         required
                         value={formData.parcel_id || ''}
                         onChange={e => setFormData({ ...formData, parcel_id: parseInt(e.target.value) })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     >
-                        <option value="">Select Parcel</option>
+                        <option value="">{t('harvest.select_parcel')}</option>
                         {parcels.map(p => (
                             <option key={p.ID} value={p.ID}>{p.name}</option>
                         ))}
@@ -114,7 +117,7 @@ export function HarvestLogForm({ onSuccess, onCancel, initialData }: HarvestLogF
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Quantity (kg)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('harvest.quantity_kg')}</label>
                     <input
                         type="number"
                         required
@@ -130,45 +133,45 @@ export function HarvestLogForm({ onSuccess, onCancel, initialData }: HarvestLogF
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Quality</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('harvest.quality')}</label>
                     <select
                         value={formData.quality}
                         onChange={e => setFormData({ ...formData, quality: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     >
-                        <option value="excellent">Excellent</option>
-                        <option value="good">Good</option>
-                        <option value="fair">Fair</option>
-                        <option value="poor">Poor</option>
+                        <option value="excellent">{t('harvest.quality_excellent')}</option>
+                        <option value="good">{t('harvest.quality_good')}</option>
+                        <option value="fair">{t('harvest.quality_fair')}</option>
+                        <option value="poor">{t('harvest.quality_poor')}</option>
                     </select>
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Cultivar</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('harvest.cultivar')}</label>
                     <input
                         type="text"
                         value={formData.cultivar || ''}
                         onChange={e => setFormData({ ...formData, cultivar: e.target.value })}
-                        placeholder="e.g. Frantoio"
+                        placeholder={t('harvest.cultivar_placeholder')}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     />
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Harvest Method</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('harvest.harvest_method')}</label>
                     <select
                         value={formData.harvest_method}
                         onChange={e => setFormData({ ...formData, harvest_method: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     >
-                        <option value="manual">Manual</option>
-                        <option value="mechanical">Mechanical</option>
-                        <option value="mixed">Mixed</option>
+                        <option value="manual">{t('harvest.method_manual')}</option>
+                        <option value="mechanical">{t('harvest.method_mechanical')}</option>
+                        <option value="mixed">{t('harvest.method_mixed')}</option>
                     </select>
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Workers</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('harvest.workers')}</label>
                     <input
                         type="number"
                         min="0"
@@ -182,7 +185,7 @@ export function HarvestLogForm({ onSuccess, onCancel, initialData }: HarvestLogF
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Labor Hours</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('harvest.labor_hours')}</label>
                     <input
                         type="number"
                         min="0"
@@ -197,7 +200,7 @@ export function HarvestLogForm({ onSuccess, onCancel, initialData }: HarvestLogF
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Total Cost (€)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('harvest.total_cost')}</label>
                     <input
                         type="number"
                         min="0"
@@ -212,7 +215,7 @@ export function HarvestLogForm({ onSuccess, onCancel, initialData }: HarvestLogF
                 </div>
 
                 <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('harvest.notes')}</label>
                     <textarea
                         value={formData.notes || ''}
                         onChange={e => setFormData({ ...formData, notes: e.target.value })}
@@ -228,7 +231,7 @@ export function HarvestLogForm({ onSuccess, onCancel, initialData }: HarvestLogF
                     onClick={onCancel}
                     className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                 >
-                    Cancel
+                    {t('harvest.cancel')}
                 </button>
                 <button
                     type="submit"
@@ -236,7 +239,7 @@ export function HarvestLogForm({ onSuccess, onCancel, initialData }: HarvestLogF
                     className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
                 >
                     {loading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                    Save Harvest Log
+                    {t('harvest.save_log')}
                 </button>
             </div>
         </form>

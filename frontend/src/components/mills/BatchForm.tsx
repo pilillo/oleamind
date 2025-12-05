@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Save, X, Loader2, Droplets } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { useTranslation } from 'react-i18next'
 import { millService, type OilBatch, type Mill, type OliveDelivery } from '../../services/millService'
 
 interface BatchFormProps {
@@ -9,6 +11,7 @@ interface BatchFormProps {
 }
 
 export function BatchForm({ onSuccess, onCancel, initialData }: BatchFormProps) {
+    const { t } = useTranslation()
     const [loading, setLoading] = useState(false)
     const [mills, setMills] = useState<Mill[]>([])
     const [deliveries, setDeliveries] = useState<OliveDelivery[]>([])
@@ -50,19 +53,19 @@ export function BatchForm({ onSuccess, onCancel, initialData }: BatchFormProps) 
         
         // Validate required fields
         if (!formData.mill_id || formData.mill_id === 0) {
-            alert('Please select a mill')
+            toast.error('Please select a mill')
             return
         }
         if (!formData.batch_number) {
-            alert('Please enter a batch number')
+            toast.error('Please enter a batch number')
             return
         }
         if (!formData.production_date) {
-            alert('Please select a production date')
+            toast.error('Please select a production date')
             return
         }
         if (!formData.quantity_liters || formData.quantity_liters <= 0) {
-            alert('Please enter a valid quantity (greater than 0)')
+            toast.error('Please enter a valid quantity (greater than 0)')
             return
         }
         
@@ -76,21 +79,16 @@ export function BatchForm({ onSuccess, onCancel, initialData }: BatchFormProps) 
                 production_date: formData.production_date?.split('T')[0] || formData.production_date
             } as OilBatch
             
-            console.log('Creating batch with data:', {
-                batch: batchData,
-                source_delivery_ids: selectedDeliveryIds
-            })
-            
             if (initialData?.ID) {
                 await millService.updateOilBatch(initialData.ID, batchData)
             } else {
                 await millService.createOilBatch(batchData, selectedDeliveryIds)
             }
+            toast.success('Batch saved successfully')
             onSuccess()
         } catch (err: any) {
-            console.error('Failed to save batch', err)
             const errorMessage = err?.message || err?.toString() || 'Failed to save batch'
-            alert(`Failed to save batch: ${errorMessage}`)
+            toast.error(errorMessage)
         } finally {
             setLoading(false)
         }

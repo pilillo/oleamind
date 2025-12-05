@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Building2, Edit, Trash2, MapPin, Phone, Mail, Award } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { useTranslation } from 'react-i18next'
 import { millService, type Mill } from '../../services/millService'
 
 interface MillListProps {
@@ -8,6 +10,7 @@ interface MillListProps {
 }
 
 export function MillList({ refreshTrigger, onEdit }: MillListProps) {
+    const { t } = useTranslation()
     const [mills, setMills] = useState<Mill[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -31,16 +34,16 @@ export function MillList({ refreshTrigger, onEdit }: MillListProps) {
     }, [refreshTrigger])
 
     const handleDelete = async (millId: number, millName: string) => {
-        if (!confirm(`Are you sure you want to delete "${millName}"? This action cannot be undone.`)) {
+        if (!confirm(t('mills.mill.delete_confirm', { name: millName }))) {
             return
         }
 
         try {
             await millService.deleteMill(millId)
             await fetchMills() // Refresh the list
-        } catch (err) {
-            console.error('Failed to delete mill', err)
-            alert('Failed to delete mill')
+            toast.success(t('mills.mill.delete_success'))
+        } catch {
+            toast.error(t('mills.mill.delete_failed'))
         }
     }
 
@@ -55,13 +58,13 @@ export function MillList({ refreshTrigger, onEdit }: MillListProps) {
     if (error) {
         return (
             <div className="text-center py-12">
-                <div className="text-red-600 mb-2">Error loading mills</div>
+                <div className="text-red-600 mb-2">{t('mills.mill.error_loading')}</div>
                 <div className="text-gray-500 text-sm">{error}</div>
                 <button
                     onClick={fetchMills}
                     className="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                 >
-                    Try Again
+                    {t('mills.mill.try_again')}
                 </button>
             </div>
         )
@@ -71,8 +74,8 @@ export function MillList({ refreshTrigger, onEdit }: MillListProps) {
         return (
             <div className="text-center py-12">
                 <Building2 size={48} className="mx-auto text-gray-300 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Mills Registered</h3>
-                <p className="text-gray-500">Get started by registering your first olive oil mill.</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">{t('mills.mill.no_mills')}</h3>
+                <p className="text-gray-500">{t('mills.mill.no_mills_desc')}</p>
             </div>
         )
     }
@@ -80,7 +83,7 @@ export function MillList({ refreshTrigger, onEdit }: MillListProps) {
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-800">Registered Mills</h3>
+                <h3 className="text-lg font-semibold text-gray-800">{t('mills.mill.registered_mills')}</h3>
                 <span className="text-sm text-gray-500">{mills.length} mill{mills.length !== 1 ? 's' : ''}</span>
             </div>
 
@@ -110,7 +113,7 @@ export function MillList({ refreshTrigger, onEdit }: MillListProps) {
                                                 ? 'bg-green-100 text-green-700'
                                                 : 'bg-gray-100 text-gray-600'
                                             }`}>
-                                            {mill.active ? 'Active' : 'Inactive'}
+                                            {mill.active ? t('mills.mill.active') : t('mills.mill.inactive')}
                                         </span>
                                     </div>
                                 </div>

@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react'
 import { Sparkles, BrainCircuit } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { useTranslation } from 'react-i18next'
 import { harvestService, type YieldPrediction } from '../../services/harvestService'
 import { apiCall } from '../../config'
 
 export function YieldPredictionPanel() {
+    const { t } = useTranslation()
     const [predictions, setPredictions] = useState<YieldPrediction[]>([])
     const [loading, setLoading] = useState(false)
     const [generating, setGenerating] = useState(false)
@@ -56,9 +59,9 @@ export function YieldPredictionPanel() {
         try {
             await harvestService.generatePrediction(Number(selectedParcelId), year)
             fetchPredictions()
-        } catch (err) {
-            console.error('Failed to generate prediction', err)
-            alert('Failed to generate prediction')
+            toast.success(t('harvest.prediction.generated_success'))
+        } catch {
+            toast.error(t('harvest.prediction.generate_failed'))
         } finally {
             setGenerating(false)
         }
@@ -97,16 +100,16 @@ export function YieldPredictionPanel() {
                     className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
                 >
                     {generating ? <BrainCircuit className="animate-pulse" size={18} /> : <Sparkles size={18} />}
-                    Generate AI Prediction
+                    {t('harvest.prediction.generate')}
                 </button>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
                 {loading ? (
-                    <div className="text-center py-8 text-gray-500">Loading predictions...</div>
+                    <div className="text-center py-8 text-gray-500">{t('harvest.prediction.loading')}</div>
                 ) : predictions.length === 0 ? (
                     <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-300">
-                        No predictions available for this year. Generate one to get started!
+                        {t('harvest.prediction.no_predictions')}
                     </div>
                 ) : (
                     predictions.map(pred => (
@@ -117,25 +120,25 @@ export function YieldPredictionPanel() {
                                         {pred.method?.replace('_', ' ')}
                                     </span>
                                     <span className="text-xs text-gray-400">
-                                        Generated on {pred.prediction_date ? new Date(pred.prediction_date).toLocaleDateString() : '-'}
+                                        {t('harvest.prediction.generated_on')} {pred.prediction_date ? new Date(pred.prediction_date).toLocaleDateString() : '-'}
                                     </span>
                                 </div>
                                 <h4 className="text-lg font-semibold text-gray-900 mb-1">
-                                    Predicted Yield: {pred.predicted_yield_kg.toLocaleString()} kg
+                                    {t('harvest.prediction.predicted_yield')}: {pred.predicted_yield_kg.toLocaleString()} kg
                                 </h4>
                                 <p className="text-sm text-gray-500">
-                                    Confidence Level: <span className="font-medium text-gray-700 capitalize">{pred.confidence_level}</span>
+                                    {t('harvest.prediction.confidence_level')}: <span className="font-medium text-gray-700 capitalize">{pred.confidence_level}</span>
                                 </p>
                             </div>
 
                             <div className="flex items-center gap-8">
                                 <div className="text-center">
-                                    <div className="text-sm text-gray-500 mb-1">Per Tree</div>
+                                    <div className="text-sm text-gray-500 mb-1">{t('harvest.prediction.per_tree')}</div>
                                     <div className="font-semibold text-gray-900">{pred.predicted_yield_per_tree?.toFixed(1)} kg</div>
                                 </div>
                                 {pred.actual_yield_kg ? (
                                     <div className="text-center">
-                                        <div className="text-sm text-gray-500 mb-1">Accuracy</div>
+                                        <div className="text-sm text-gray-500 mb-1">{t('harvest.prediction.accuracy')}</div>
                                         <div className={`font-semibold ${(pred.accuracy || 0) > 90 ? 'text-green-600' :
                                             (pred.accuracy || 0) > 70 ? 'text-blue-600' : 'text-yellow-600'
                                             }`}>
@@ -144,7 +147,7 @@ export function YieldPredictionPanel() {
                                     </div>
                                 ) : (
                                     <div className="text-center opacity-50">
-                                        <div className="text-sm text-gray-500 mb-1">Accuracy</div>
+                                        <div className="text-sm text-gray-500 mb-1">{t('harvest.prediction.accuracy')}</div>
                                         <div className="font-semibold text-gray-400">-</div>
                                     </div>
                                 )}

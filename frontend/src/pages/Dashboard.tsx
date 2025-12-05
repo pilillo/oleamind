@@ -169,19 +169,12 @@ function Dashboard() {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
       const data = await response.json()
-      console.log('📋 Raw operations response:', data)
       if (Array.isArray(data)) {
-        console.log('✅ Operations fetched:', data.length, 'operations')
-        if (data.length > 0) {
-          console.log('First operation:', data[0])
-        }
         setOperations(data)
       } else {
-        console.warn('⚠️ Operations response is not an array:', data)
         setOperations([])
       }
     } catch (err) {
-      console.error('❌ Failed to fetch operations:', err)
       setOperations([])
     }
   }
@@ -237,20 +230,20 @@ function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 transition-all hover:shadow-md">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-gray-500 text-sm font-medium">Total Parcels</h3>
+            <h3 className="text-gray-500 text-sm font-medium">{t('dashboard.total_parcels')}</h3>
             <div className="p-2 bg-green-50 rounded-lg text-green-600">
               <MapIcon size={20} />
             </div>
           </div>
           <div>
             <p className="text-3xl font-bold text-gray-900">{parcels.length}</p>
-            <p className="text-sm text-gray-500 mt-1">Orchards managed</p>
+            <p className="text-sm text-gray-500 mt-1">{t('dashboard.orchards_managed')}</p>
           </div>
         </div>
 
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 transition-all hover:shadow-md">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-gray-500 text-sm font-medium">Total Area</h3>
+            <h3 className="text-gray-500 text-sm font-medium">{t('dashboard.total_area')}</h3>
             <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
               <Trees size={20} />
             </div>
@@ -260,13 +253,13 @@ function Dashboard() {
               {totalArea > 0 ? totalArea.toFixed(1) : '0'}
               <span className="text-lg text-gray-400 font-normal"> ha</span>
             </p>
-            <p className="text-sm text-gray-500 mt-1">Olive cultivation</p>
+            <p className="text-sm text-gray-500 mt-1">{t('dashboard.olive_cultivation')}</p>
           </div>
         </div>
 
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 transition-all hover:shadow-md">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-gray-500 text-sm font-medium">Total Trees</h3>
+            <h3 className="text-gray-500 text-sm font-medium">{t('dashboard.total_trees')}</h3>
             <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600">
               <TreeDeciduous size={20} />
             </div>
@@ -276,14 +269,14 @@ function Dashboard() {
               {totalTrees > 0 ? totalTrees.toLocaleString() : '0'}
             </p>
             <p className="text-sm text-gray-500 mt-1">
-              {totalTrees > 0 ? `Across ${parcels.length} parcel${parcels.length !== 1 ? 's' : ''}` : 'No trees recorded'}
+              {totalTrees > 0 ? t(parcels.length !== 1 ? 'dashboard.across_parcels_plural' : 'dashboard.across_parcels', { count: parcels.length }) : t('dashboard.no_trees_recorded')}
             </p>
           </div>
         </div>
 
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 transition-all hover:shadow-md">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-gray-500 text-sm font-medium">Operations</h3>
+            <h3 className="text-gray-500 text-sm font-medium">{t('dashboard.operations')}</h3>
             <div className="p-2 bg-amber-50 rounded-lg text-amber-600">
               <Activity size={20} />
             </div>
@@ -292,13 +285,13 @@ function Dashboard() {
             <div>
               <p className="text-3xl font-bold text-gray-900">{activeOperations.length}</p>
               <p className="text-sm text-gray-500 mt-1">
-                {activeOperations.length === 0 ? 'No active tasks' :
-                  activeOperations.length === 1 ? '1 task planned' : 'Tasks planned'}
+                {activeOperations.length === 0 ? t('dashboard.no_active_tasks') :
+                  activeOperations.length === 1 ? `1 ${t('dashboard.task_planned')}` : t('dashboard.tasks_planned')}
               </p>
             </div>
             {completedOperations.length > 0 && (
               <div className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                {completedOperations.length} completed
+                {completedOperations.length} {t('dashboard.completed')}
               </div>
             )}
           </div>
@@ -310,7 +303,7 @@ function Dashboard() {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <h2 className="text-lg font-semibold mb-6 text-gray-900 flex items-center gap-2">
             <Cloud size={20} className="text-gray-400" />
-            Weather Overview
+            {t('dashboard.weather_overview')}
           </h2>
 
           {parcels.length > 0 ? (
@@ -319,12 +312,12 @@ function Dashboard() {
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
                 <div className="flex items-center gap-3 mb-2">
                   <MapPin className="text-blue-600" size={20} />
-                  <span className="font-semibold text-blue-900">{parcels.length} Parcels Monitored</span>
+                  <span className="font-semibold text-blue-900">{parcels.length} {t('dashboard.parcels_monitored')}</span>
                 </div>
                 {minTemp !== null && maxTemp !== null && (
                   <p className="text-sm text-blue-700">
                     <Thermometer size={14} className="inline mr-1" />
-                    Temp range: {minTemp.toFixed(1)}°C - {maxTemp.toFixed(1)}°C
+                    {t('dashboard.temp_range')}: {minTemp.toFixed(1)}°C - {maxTemp.toFixed(1)}°C
                   </p>
                 )}
               </div>
@@ -336,12 +329,12 @@ function Dashboard() {
                     <Droplets size={20} className="text-blue-600 mt-0.5" />
                     <div>
                       <p className="text-sm font-semibold text-blue-900">
-                        Rain Expected
+                        {t('dashboard.rain_expected')}
                       </p>
                       <p className="text-xs text-blue-700 mt-1">
-                        {parcelsWithRain} parcel{parcelsWithRain > 1 ? 's' : ''} expecting rain in next 24h
+                        {t(parcelsWithRain > 1 ? 'dashboard.parcels_expecting_rain_plural' : 'dashboard.parcels_expecting_rain', { count: parcelsWithRain })}
                       </p>
-                      <p className="text-xs text-blue-600 mt-1">💡 Delay pesticide applications</p>
+                      <p className="text-xs text-blue-600 mt-1">💡 {t('dashboard.delay_pesticide')}</p>
                     </div>
                   </div>
                 </div>
@@ -349,7 +342,7 @@ function Dashboard() {
                 <div className="bg-gray-50 border border-gray-200 p-4 rounded">
                   <p className="text-sm text-gray-600">
                     <Cloud size={16} className="inline mr-2" />
-                    No rain forecast for any parcels
+                    {t('dashboard.no_rain_forecast')}
                   </p>
                 </div>
               )}
@@ -361,12 +354,12 @@ function Dashboard() {
                     <Droplets size={20} className="text-amber-600 mt-0.5" />
                     <div>
                       <p className="text-sm font-semibold text-amber-900">
-                        Irrigation Recommended
+                        {t('dashboard.irrigation_recommended')}
                       </p>
                       <p className="text-xs text-amber-700 mt-1">
-                        {parcelsNeedingIrrigation} parcel{parcelsNeedingIrrigation > 1 ? 's' : ''} with high ET0 and no rain
+                        {t(parcelsNeedingIrrigation > 1 ? 'dashboard.parcels_high_et0_plural' : 'dashboard.parcels_high_et0', { count: parcelsNeedingIrrigation })}
                       </p>
-                      <p className="text-xs text-amber-600 mt-1">💡 Check soil moisture levels</p>
+                      <p className="text-xs text-amber-600 mt-1">💡 {t('dashboard.check_soil_moisture')}</p>
                     </div>
                   </div>
                 </div>
@@ -374,19 +367,19 @@ function Dashboard() {
                 <div className="bg-green-50 border border-green-200 p-4 rounded">
                   <p className="text-sm text-green-700">
                     <Droplets size={16} className="inline mr-2" />
-                    All parcels have adequate water conditions
+                    {t('dashboard.adequate_water')}
                   </p>
                 </div>
               )}
 
               <p className="text-xs text-gray-400 text-center pt-2 border-t border-gray-100">
-                View detailed weather per parcel in the Parcels page
+                {t('dashboard.view_detailed_weather')}
               </p>
             </div>
           ) : (
             <div className="text-center py-8 text-gray-400">
               <Cloud size={48} className="mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No parcels yet</p>
+              <p className="text-sm">{t('dashboard.no_parcels_yet')}</p>
             </div>
           )}
         </div>
@@ -395,7 +388,7 @@ function Dashboard() {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <h2 className="text-lg font-semibold mb-6 text-gray-900 flex items-center gap-2">
             <Clock size={20} className="text-gray-400" />
-            Recent Activities
+            {t('dashboard.recent_activities')}
           </h2>
           {recentOperations.length > 0 ? (
             <div className="space-y-6">
@@ -405,18 +398,18 @@ function Dashboard() {
 
                 // Handle date parsing more robustly
                 let daysSince = 0
-                let timeAgo = 'Today'
+                let timeAgo = t('dashboard.today')
                 try {
                   const opDate = new Date(op.date || op.CreatedAt || 0)
                   if (!isNaN(opDate.getTime())) {
                     daysSince = Math.floor((Date.now() - opDate.getTime()) / (1000 * 60 * 60 * 24))
-                    timeAgo = daysSince === 0 ? 'Today' :
-                      daysSince === 1 ? 'Yesterday' :
-                        daysSince < 0 ? 'Upcoming' :
-                          `${daysSince} days ago`
+                    timeAgo = daysSince === 0 ? t('dashboard.today') :
+                      daysSince === 1 ? t('dashboard.yesterday') :
+                        daysSince < 0 ? t('dashboard.upcoming') :
+                          t('dashboard.days_ago', { count: daysSince })
                   }
-                } catch (e) {
-                  console.error('Date parsing error:', e, op)
+                } catch {
+                  // Silently handle date parsing errors
                 }
 
                 // Use explicit classes for Tailwind (dynamic classes don't work)
@@ -427,9 +420,9 @@ function Dashboard() {
                   dotClass = 'bg-gray-100 ring-gray-500'
                 }
 
-                const typeLabel = op.type ? op.type.replace('_', ' ') : 'Activity'
-                const statusLabel = op.status === 'completed' ? 'Completed' :
-                  op.status === 'cancelled' ? 'Cancelled' : 'Scheduled'
+                const typeLabel = op.type ? t(`operations.type_${op.type}`, op.type.replace('_', ' ')) : t('operations.type_other')
+                const statusLabel = op.status === 'completed' ? t('operations.status_completed') :
+                  op.status === 'cancelled' ? t('dashboard.cancelled') : t('dashboard.scheduled')
 
                 return (
                   <div key={op.ID} className={`relative pl-6 border-l-2 border-gray-100 ${isLast ? '' : 'pb-2'}`}>
@@ -443,8 +436,8 @@ function Dashboard() {
           ) : (
             <div className="text-center py-10 text-gray-400">
               <Clock size={40} className="mx-auto mb-3 opacity-30" />
-              <p className="text-sm">No operations logged yet</p>
-              <p className="text-xs mt-1">Start tracking your orchard activities</p>
+              <p className="text-sm">{t('dashboard.no_operations_logged')}</p>
+              <p className="text-xs mt-1">{t('dashboard.start_tracking')}</p>
             </div>
           )}
         </div>
@@ -453,7 +446,7 @@ function Dashboard() {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <h2 className="text-lg font-semibold mb-6 text-gray-900 flex items-center gap-2">
             <AlertTriangle size={20} className="text-gray-400" />
-            Alerts & Notifications
+            {t('dashboard.alerts_notifications')}
           </h2>
           {lowStockItems.length > 0 || parcelsNeedingIrrigation > 0 ? (
             <div className="space-y-4">
@@ -464,10 +457,10 @@ function Dashboard() {
                     <AlertTriangle size={20} className="text-amber-600" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-amber-900">Low stock: {item.name}</p>
+                    <p className="text-sm font-medium text-amber-900">{t('dashboard.low_stock')}: {item.name}</p>
                     <p className="text-xs text-amber-700 mt-1">
-                      Only {item.quantity} {item.name.toLowerCase().includes('fertilizer') || item.name.toLowerCase().includes('pesticide') ? 'kg' : 'units'} remaining.
-                      Minimum: {item.minimum_stock}
+                      {item.quantity} {item.name.toLowerCase().includes('fertilizer') || item.name.toLowerCase().includes('pesticide') ? 'kg' : 'units'} {t('dashboard.remaining')}.
+                      {t('dashboard.minimum')}: {item.minimum_stock}
                     </p>
                   </div>
                 </div>
@@ -476,7 +469,7 @@ function Dashboard() {
               {lowStockItems.length > 2 && (
                 <div className="text-center">
                   <p className="text-xs text-gray-500">
-                    + {lowStockItems.length - 2} more low stock item{lowStockItems.length - 2 > 1 ? 's' : ''}
+                    {t(lowStockItems.length - 2 > 1 ? 'dashboard.more_low_stock_items_plural' : 'dashboard.more_low_stock_items', { count: lowStockItems.length - 2 })}
                   </p>
                 </div>
               )}
@@ -490,13 +483,13 @@ function Dashboard() {
                       <AlertTriangle size={20} className="text-red-600" />
                     </div>
                     <div className="flex-grow">
-                      <p className="text-sm font-bold text-red-900 uppercase tracking-wide">Critical Irrigation Needed</p>
+                      <p className="text-sm font-bold text-red-900 uppercase tracking-wide">{t('dashboard.critical_irrigation_needed')}</p>
                       <p className="text-xs text-red-700 mt-1 font-medium">
                         {parcel?.name || `Parcel ${parcelId}`}: {irrigation.recommended_amount?.toFixed(1)} mm
                         ({irrigation.recommended_liters_tree?.toFixed(0)} L/tree)
                       </p>
                       <p className="text-xs text-red-600 mt-1">
-                        Water stress: {irrigation.stress_level || 'severe'} • Soil moisture: {irrigation.soil_moisture_estimate?.toFixed(0)}%
+                        {t('dashboard.water_stress')}: {irrigation.stress_level || 'severe'} • {t('dashboard.soil_moisture')}: {irrigation.soil_moisture_estimate?.toFixed(0)}%
                       </p>
                     </div>
                   </div>
@@ -509,9 +502,9 @@ function Dashboard() {
                     <Droplets size={20} className="text-amber-600" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-amber-900">Irrigation Recommended</p>
+                    <p className="text-sm font-medium text-amber-900">{t('dashboard.irrigation_recommended')}</p>
                     <p className="text-xs text-amber-700 mt-1">
-                      {parcelsNeedingIrrigation - criticalIrrigationParcels.length} more parcel{parcelsNeedingIrrigation - criticalIrrigationParcels.length > 1 ? 's' : ''} need{parcelsNeedingIrrigation - criticalIrrigationParcels.length === 1 ? 's' : ''} irrigation. Check Parcels page for details.
+                      {t((parcelsNeedingIrrigation - criticalIrrigationParcels.length) > 1 ? 'dashboard.more_parcels_need_irrigation_plural' : 'dashboard.more_parcels_need_irrigation', { count: parcelsNeedingIrrigation - criticalIrrigationParcels.length })}. {t('dashboard.check_parcels_page')}
                     </p>
                   </div>
                 </div>
@@ -520,13 +513,6 @@ function Dashboard() {
               {/* Pest Risk alerts - Critical/High only */}
               {criticalPestRisks.length > 0 && criticalPestRisks.slice(0, 2).map(({ parcelId, assessment }) => {
                 const parcel = parcels.find(p => p.ID === parcelId)
-                const pestNameMap: any = {
-                  'olive_fly': 'Olive Fruit Fly',
-                  'peacock_spot': 'Peacock Spot',
-                  'verticillium': 'Verticillium Wilt',
-                  'olive_knot': 'Olive Knot',
-                  'anthracnose': 'Anthracnose'
-                }
                 const isCritical = assessment.risk_level === 'critical'
                 return (
                   <div key={`${parcelId}-${assessment.pest_type}`} className={`${isCritical ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200'} border p-4 rounded-lg flex gap-4`}>
@@ -535,10 +521,10 @@ function Dashboard() {
                     </div>
                     <div className="flex-grow">
                       <p className={`text-sm font-bold uppercase tracking-wide ${isCritical ? 'text-red-900' : 'text-orange-900'}`}>
-                        {isCritical ? 'Critical' : 'High'} Pest Risk
+                        {isCritical ? t('dashboard.critical_pest_risk') : t('dashboard.high_pest_risk')}
                       </p>
                       <p className={`text-xs mt-1 font-medium ${isCritical ? 'text-red-700' : 'text-orange-700'}`}>
-                        {parcel?.name || `Parcel ${parcelId}`}: {pestNameMap[assessment.pest_type] || assessment.pest_type}
+                        {parcel?.name || `Parcel ${parcelId}`}: {t(`pests.pests.${assessment.pest_type}`, assessment.pest_type)}
                       </p>
                       <p className={`text-xs mt-1 ${isCritical ? 'text-red-600' : 'text-orange-600'}`}>
                         {assessment.alert_message}
@@ -551,16 +537,16 @@ function Dashboard() {
               {/* No alerts message if only showing older alerts */}
               {lowStockItems.length === 0 && parcelsNeedingIrrigation === 0 && criticalPestRisks.length === 0 && (
                 <div className="bg-green-50 border border-green-100 p-4 rounded-lg text-center">
-                  <p className="text-sm font-medium text-green-800">✅ All systems good</p>
-                  <p className="text-xs text-green-600 mt-1">No urgent actions needed</p>
+                  <p className="text-sm font-medium text-green-800">✅ {t('dashboard.all_systems_good')}</p>
+                  <p className="text-xs text-green-600 mt-1">{t('dashboard.no_urgent_actions')}</p>
                 </div>
               )}
             </div>
           ) : (
             <div className="text-center py-10 text-gray-400">
               <AlertTriangle size={40} className="mx-auto mb-3 opacity-30" />
-              <p className="text-sm">No alerts at this time</p>
-              <p className="text-xs mt-1">All systems operating normally</p>
+              <p className="text-sm">{t('dashboard.no_alerts')}</p>
+              <p className="text-xs mt-1">{t('dashboard.all_systems_normal')}</p>
             </div>
           )}
         </div>
@@ -651,7 +637,7 @@ function Dashboard() {
               })}
             </div>
             <p className="text-[10px] text-gray-400 text-center mt-3">
-              {t('forecast.peak_this_week')} • See Parcels page for details
+              {t('forecast.peak_this_week')} • {t('dashboard.see_parcels_details')}
             </p>
           </div>
         )}
