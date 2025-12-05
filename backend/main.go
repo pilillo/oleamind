@@ -48,6 +48,8 @@ func main() {
 		&models.SatelliteData{},
 		&models.WeatherData{},
 		&models.WeatherForecast{},
+		&models.DailyForecast{},
+		&models.ForecastRiskPrediction{},
 		&models.IrrigationEvent{},
 		&models.IrrigationRecommendation{},
 		&models.SoilProfile{},
@@ -158,6 +160,10 @@ func main() {
 		protected.GET("/pests/treatments/:parcel_id", controllers.GetTreatmentHistory)
 		protected.POST("/pests/monitoring", controllers.LogMonitoring)
 		protected.GET("/pests/monitoring/:parcel_id", controllers.GetMonitoringHistory)
+		// 7-Day Risk Forecast Routes
+		protected.GET("/pests/risk-forecast/:parcel_id", controllers.GetRiskForecast)
+		protected.GET("/pests/risk-forecast/:parcel_id/summary", controllers.GetRiskForecastSummary)
+		protected.POST("/pests/risk-forecast/:parcel_id/refresh", controllers.RefreshRiskForecast)
 
 		// Harvest & Yield Routes
 		protected.POST("/harvests", controllers.LogHarvest)

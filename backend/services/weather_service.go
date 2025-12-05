@@ -13,7 +13,7 @@ import (
 	"github.com/oleamind/backend/models"
 )
 
-// OpenMeteoResponse structure for current weather
+// OpenMeteoResponse structure for current weather and 7-day forecast
 type OpenMeteoCurrentResponse struct {
 	Latitude  float64 `json:"latitude"`
 	Longitude float64 `json:"longitude"`
@@ -30,11 +30,18 @@ type OpenMeteoCurrentResponse struct {
 		ET0           float64 `json:"et0_fao_evapotranspiration"`
 	} `json:"current"`
 	Daily struct {
-		Time          []string  `json:"time"`
-		TempMin       []float64 `json:"temperature_2m_min"`
-		TempMax       []float64 `json:"temperature_2m_max"`
-		Precipitation []float64 `json:"precipitation_sum"`
-		ET0           []float64 `json:"et0_fao_evapotranspiration"`
+		Time              []string  `json:"time"`
+		TempMin           []float64 `json:"temperature_2m_min"`
+		TempMax           []float64 `json:"temperature_2m_max"`
+		Precipitation     []float64 `json:"precipitation_sum"`
+		PrecipitationProb []int     `json:"precipitation_probability_max"`
+		ET0               []float64 `json:"et0_fao_evapotranspiration"`
+		HumidityMax       []int     `json:"relative_humidity_2m_max"`
+		HumidityMin       []int     `json:"relative_humidity_2m_min"`
+		WindSpeedMax      []float64 `json:"wind_speed_10m_max"`
+		WindGustMax       []float64 `json:"wind_gusts_10m_max"`
+		SunshineDuration  []float64 `json:"sunshine_duration"`
+		UVIndexMax        []float64 `json:"uv_index_max"`
 	} `json:"daily"`
 }
 
@@ -114,16 +121,18 @@ func (s *WeatherService) extractCoordinates(parcel *models.Parcel) (float64, flo
 	return lat, lon, nil
 }
 
-// fetchFromOpenMeteo calls the Open-Meteo API
+// fetchFromOpenMeteo calls the Open-Meteo API with 7-day forecast
 func (s *WeatherService) fetchFromOpenMeteo(lat, lon float64, parcelID uint) (*models.WeatherData, error) {
-	// Build API URL with all required parameters
+	// Build API URL with all required parameters including 7-day forecast
 	url := fmt.Sprintf(
 		"https://api.open-meteo.com/v1/forecast?"+
 			"latitude=%.4f&longitude=%.4f&"+
 			"current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,wind_direction_10m,cloud_cover,surface_pressure,et0_fao_evapotranspiration&"+
-			"daily=temperature_2m_min,temperature_2m_max,precipitation_sum,et0_fao_evapotranspiration&"+
+			"daily=temperature_2m_min,temperature_2m_max,precipitation_sum,precipitation_probability_max,"+
+			"et0_fao_evapotranspiration,relative_humidity_2m_max,relative_humidity_2m_min,"+
+			"wind_speed_10m_max,wind_gusts_10m_max,sunshine_duration,uv_index_max&"+
 			"timezone=auto&"+
-			"forecast_days=2",
+			"forecast_days=7",
 		lat, lon,
 	)
 
@@ -205,12 +214,138 @@ func (s *WeatherService) fetchFromOpenMeteo(lat, lon float64, parcelID uint) (*m
 		)
 	}
 
+	// Save 7-day forecast
+	s.saveDailyForecasts(parcelID, &apiResp)
+
 	// Clean up old weather data (keep last 30 days)
 	cutoffDate := time.Now().AddDate(0, 0, -30)
 	initializers.DB.Where("parcel_id = ? AND fetched_at < ?", parcelID, cutoffDate).
 		Delete(&models.WeatherData{})
 
 	return weatherData, nil
+}
+
+// saveDailyForecasts stores the 7-day daily forecast data
+func (s *WeatherService) saveDailyForecasts(parcelID uint, apiResp *OpenMeteoCurrentResponse) {
+	// Delete existing forecasts for this parcel (we'll replace with fresh data)
+	initializers.DB.Where("parcel_id = ?", parcelID).Delete(&models.DailyForecast{})
+
+	now := time.Now()
+
+	for i, dateStr := range apiResp.Daily.Time {
+		// Parse forecast date
+		forecastDate, err := time.Parse("2006-01-02", dateStr)
+		if err != nil {
+			slog.Warn("Failed to parse forecast date", "date", dateStr, "error", err)
+			continue
+		}
+
+		// Calculate average temperature
+		tempAvg := 0.0
+		if i < len(apiResp.Daily.TempMin) && i < len(apiResp.Daily.TempMax) {
+			tempAvg = (apiResp.Daily.TempMin[i] + apiResp.Daily.TempMax[i]) / 2
+		}
+
+		// Calculate average humidity
+		humidityAvg := 0
+		if i < len(apiResp.Daily.HumidityMin) && i < len(apiResp.Daily.HumidityMax) {
+			humidityAvg = (apiResp.Daily.HumidityMin[i] + apiResp.Daily.HumidityMax[i]) / 2
+		}
+
+		forecast := models.DailyForecast{
+			ParcelID:     parcelID,
+			ForecastDate: models.DateOnly{Time: forecastDate},
+			DaysAhead:    i,
+			FetchedAt:    now,
+			FarmID:       1, // Default for MVP
+		}
+
+		// Temperature
+		if i < len(apiResp.Daily.TempMin) {
+			forecast.TempMin = apiResp.Daily.TempMin[i]
+		}
+		if i < len(apiResp.Daily.TempMax) {
+			forecast.TempMax = apiResp.Daily.TempMax[i]
+		}
+		forecast.TempAvg = tempAvg
+
+		// Precipitation
+		if i < len(apiResp.Daily.Precipitation) {
+			forecast.PrecipitationSum = apiResp.Daily.Precipitation[i]
+		}
+		if i < len(apiResp.Daily.PrecipitationProb) {
+			forecast.PrecipitationProb = apiResp.Daily.PrecipitationProb[i]
+		}
+
+		// Humidity
+		if i < len(apiResp.Daily.HumidityMin) {
+			forecast.HumidityMin = apiResp.Daily.HumidityMin[i]
+		}
+		if i < len(apiResp.Daily.HumidityMax) {
+			forecast.HumidityMax = apiResp.Daily.HumidityMax[i]
+		}
+		forecast.HumidityAvg = humidityAvg
+
+		// Wind
+		if i < len(apiResp.Daily.WindSpeedMax) {
+			forecast.WindSpeedMax = apiResp.Daily.WindSpeedMax[i]
+			forecast.WindSpeedAvg = apiResp.Daily.WindSpeedMax[i] * 0.6 // Approximate average
+		}
+		if i < len(apiResp.Daily.WindGustMax) {
+			forecast.WindGustMax = apiResp.Daily.WindGustMax[i]
+		}
+
+		// ET0 and solar
+		if i < len(apiResp.Daily.ET0) {
+			forecast.ET0 = apiResp.Daily.ET0[i]
+		}
+		if i < len(apiResp.Daily.SunshineDuration) {
+			forecast.SunshineDur = apiResp.Daily.SunshineDuration[i] / 3600 // Convert seconds to hours
+		}
+		if i < len(apiResp.Daily.UVIndexMax) {
+			forecast.UVIndexMax = apiResp.Daily.UVIndexMax[i]
+		}
+
+		// Save forecast
+		if err := initializers.DB.Create(&forecast).Error; err != nil {
+			slog.Warn("Failed to save daily forecast",
+				"parcel_id", parcelID,
+				"date", dateStr,
+				"error", err,
+			)
+		}
+	}
+
+	slog.Info("Saved 7-day forecast",
+		"parcel_id", parcelID,
+		"days", len(apiResp.Daily.Time),
+	)
+}
+
+// GetDailyForecasts retrieves the 7-day forecast for a parcel
+func (s *WeatherService) GetDailyForecasts(parcelID uint) ([]models.DailyForecast, error) {
+	var forecasts []models.DailyForecast
+
+	// Check if we have fresh forecasts
+	var latest models.DailyForecast
+	err := initializers.DB.Where("parcel_id = ?", parcelID).
+		Order("fetched_at DESC").
+		First(&latest).Error
+
+	// If no forecasts or stale, fetch fresh data
+	if err != nil || latest.IsForecastStale() {
+		slog.Info("Fetching fresh forecast data", "parcel_id", parcelID)
+		if _, err := s.GetWeatherForParcel(parcelID); err != nil {
+			slog.Warn("Failed to refresh forecast", "error", err)
+		}
+	}
+
+	// Get all forecasts ordered by date
+	err = initializers.DB.Where("parcel_id = ?", parcelID).
+		Order("days_ahead ASC").
+		Find(&forecasts).Error
+
+	return forecasts, err
 }
 
 // GetWeatherForAllParcels fetches weather for all parcels (background job)

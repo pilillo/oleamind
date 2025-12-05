@@ -414,3 +414,419 @@ func (s *PestControlService) GetMonitoringHistory(parcelID uint, pestType models
 	err := query.Order("date DESC").Find(&monitoring).Error
 	return monitoring, err
 }
+
+// CalculateRiskForecast calculates pest/disease risk for the next 7 days based on weather forecast
+func (s *PestControlService) CalculateRiskForecast(parcelID uint) ([]models.ForecastRiskPrediction, error) {
+	// Get the 7-day forecast
+	weatherService := NewWeatherService()
+	forecasts, err := weatherService.GetDailyForecasts(parcelID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get forecasts: %w", err)
+	}
+
+	if len(forecasts) == 0 {
+		return nil, fmt.Errorf("no forecast data available")
+	}
+
+	// Get the parcel
+	var parcel models.Parcel
+	if err := initializers.DB.First(&parcel, parcelID).Error; err != nil {
+		return nil, fmt.Errorf("parcel not found: %w", err)
+	}
+
+	// Delete existing predictions for this parcel
+	initializers.DB.Where("parcel_id = ?", parcelID).Delete(&models.ForecastRiskPrediction{})
+
+	var predictions []models.ForecastRiskPrediction
+	now := time.Now()
+
+	// Track previous day's risk for trend calculation
+	var prevFlyRisk, prevSpotRisk float64
+
+	for i, forecast := range forecasts {
+		// Calculate confidence (decreases with days ahead)
+		confidence := 100.0 - float64(forecast.DaysAhead)*10
+		if confidence < 40 {
+			confidence = 40 // Minimum confidence
+		}
+
+		// Calculate Olive Fly risk for this day
+		flyRisk := s.calculateOliveFlyRiskFromForecast(&forecast, &parcel)
+		flyTrend := s.calculateTrend(prevFlyRisk, flyRisk.RiskScore, i)
+		flyRisk.Confidence = confidence
+		flyRisk.RiskTrend = flyTrend
+		flyRisk.ForecastDate = forecast.ForecastDate
+		flyRisk.DaysAhead = forecast.DaysAhead
+		flyRisk.TempAvg = forecast.TempAvg
+		flyRisk.HumidityAvg = forecast.HumidityAvg
+		flyRisk.PrecipitationMm = forecast.PrecipitationSum
+		flyRisk.FetchedAt = now
+		prevFlyRisk = flyRisk.RiskScore
+
+		// Calculate Peacock Spot risk for this day
+		spotRisk := s.calculatePeacockSpotRiskFromForecast(&forecast, &parcel)
+		spotTrend := s.calculateTrend(prevSpotRisk, spotRisk.RiskScore, i)
+		spotRisk.Confidence = confidence
+		spotRisk.RiskTrend = spotTrend
+		spotRisk.ForecastDate = forecast.ForecastDate
+		spotRisk.DaysAhead = forecast.DaysAhead
+		spotRisk.TempAvg = forecast.TempAvg
+		spotRisk.HumidityAvg = forecast.HumidityAvg
+		spotRisk.PrecipitationMm = forecast.PrecipitationSum
+		spotRisk.FetchedAt = now
+		prevSpotRisk = spotRisk.RiskScore
+
+		// Save predictions to database
+		if err := initializers.DB.Create(&flyRisk).Error; err == nil {
+			predictions = append(predictions, flyRisk)
+		}
+		if err := initializers.DB.Create(&spotRisk).Error; err == nil {
+			predictions = append(predictions, spotRisk)
+		}
+	}
+
+	return predictions, nil
+}
+
+// calculateOliveFlyRiskFromForecast calculates fly risk from forecast data
+func (s *PestControlService) calculateOliveFlyRiskFromForecast(forecast *models.DailyForecast, parcel *models.Parcel) models.ForecastRiskPrediction {
+	prediction := models.ForecastRiskPrediction{
+		ParcelID: forecast.ParcelID,
+		PestType: models.PestTypeOliveFly,
+	}
+
+	// Check if we're in fruiting period
+	month := forecast.ForecastDate.Time.Month()
+	isFruitingPeriod := month >= time.May && month <= time.October
+
+	if !isFruitingPeriod {
+		prediction.RiskScore = 0
+		prediction.RiskLevel = models.RiskLevelNone
+		prediction.AlertMessage = "Not applicable - no fruit present (dormant/post-harvest period)."
+		prediction.Recommendations = "{}"
+		return prediction
+	}
+
+	riskScore := 0.0
+
+	// Temperature factor (0-40 points) - use average temp
+	temp := forecast.TempAvg
+	if temp >= 20 && temp <= 30 {
+		riskScore += 40
+	} else if temp >= 15 && temp < 20 {
+		riskScore += 25
+	} else if temp > 30 && temp <= 35 {
+		riskScore += 15
+	} else {
+		riskScore += 5
+	}
+
+	// Humidity factor (0-30 points) - use average humidity
+	humidity := forecast.HumidityAvg
+	if humidity > 70 {
+		riskScore += 30
+	} else if humidity > 60 {
+		riskScore += 20
+	} else if humidity > 50 {
+		riskScore += 10
+	} else {
+		riskScore += 5
+	}
+
+	// Precipitation factor (0-20 points)
+	precipitation := forecast.PrecipitationSum
+	if precipitation > 20 {
+		riskScore += 5 // Heavy rain disrupts activity
+	} else if precipitation > 5 {
+		riskScore += 10 // Light rain
+	} else {
+		riskScore += 20 // Dry conditions favor flies
+	}
+
+	// Growth stage factor (0-10 points)
+	if month >= time.July && month <= time.September {
+		riskScore += 10 // Peak fruiting
+	} else {
+		riskScore += 5
+	}
+
+	prediction.RiskScore = riskScore
+	prediction.RiskLevel = s.getRiskLevelFromScore(riskScore, "olive_fly")
+	prediction.AlertMessage = s.getAlertMessageForRisk(prediction.RiskLevel, "olive_fly", forecast.DaysAhead)
+	prediction.Recommendations = s.getOliveFlyRecommendations(string(prediction.RiskLevel))
+
+	return prediction
+}
+
+// calculatePeacockSpotRiskFromForecast calculates peacock spot risk from forecast data
+func (s *PestControlService) calculatePeacockSpotRiskFromForecast(forecast *models.DailyForecast, parcel *models.Parcel) models.ForecastRiskPrediction {
+	prediction := models.ForecastRiskPrediction{
+		ParcelID: forecast.ParcelID,
+		PestType: models.PestTypePeacockSpot,
+	}
+
+	riskScore := 0.0
+
+	// Temperature factor (0-35 points)
+	temp := forecast.TempAvg
+	if temp >= 10 && temp <= 20 {
+		riskScore += 35
+	} else if temp > 20 && temp <= 25 {
+		riskScore += 25
+	} else if temp > 5 && temp < 10 {
+		riskScore += 15
+	} else {
+		riskScore += 5
+	}
+
+	// Wetness/humidity factor (0-40 points)
+	humidity := forecast.HumidityMax
+	precipitation := forecast.PrecipitationSum
+
+	if precipitation > 5 || humidity > 90 {
+		riskScore += 40
+	} else if precipitation > 1 || humidity > 80 {
+		riskScore += 30
+	} else if humidity > 70 {
+		riskScore += 20
+	} else {
+		riskScore += 5
+	}
+
+	// Season factor (0-15 points)
+	month := forecast.ForecastDate.Time.Month()
+	if month >= time.September && month <= time.November {
+		riskScore += 15 // Autumn peak
+	} else if month >= time.March && month <= time.May {
+		riskScore += 12 // Spring
+	} else if month >= time.December || month <= time.February {
+		riskScore += 8 // Winter
+	} else {
+		riskScore += 3 // Summer
+	}
+
+	// Rain probability factor (0-10 points)
+	if forecast.PrecipitationProb > 70 {
+		riskScore += 10
+	} else if forecast.PrecipitationProb > 40 {
+		riskScore += 5
+	}
+
+	prediction.RiskScore = riskScore
+	prediction.RiskLevel = s.getRiskLevelFromScore(riskScore, "peacock_spot")
+	prediction.AlertMessage = s.getAlertMessageForRisk(prediction.RiskLevel, "peacock_spot", forecast.DaysAhead)
+	prediction.Recommendations = s.getPeacockSpotRecommendations(string(prediction.RiskLevel))
+
+	return prediction
+}
+
+// getRiskLevelFromScore converts a numeric score to a risk level
+func (s *PestControlService) getRiskLevelFromScore(score float64, pestType string) models.RiskLevel {
+	if pestType == "peacock_spot" {
+		// Peacock spot uses different thresholds
+		if score >= 75 {
+			return models.RiskLevelCritical
+		} else if score >= 55 {
+			return models.RiskLevelHigh
+		} else if score >= 35 {
+			return models.RiskLevelModerate
+		} else if score >= 15 {
+			return models.RiskLevelLow
+		}
+		return models.RiskLevelNone
+	}
+
+	// Olive fly thresholds
+	if score >= 80 {
+		return models.RiskLevelCritical
+	} else if score >= 60 {
+		return models.RiskLevelHigh
+	} else if score >= 40 {
+		return models.RiskLevelModerate
+	} else if score >= 20 {
+		return models.RiskLevelLow
+	}
+	return models.RiskLevelNone
+}
+
+// calculateTrend determines if risk is increasing, stable, or decreasing
+func (s *PestControlService) calculateTrend(prevScore, currentScore float64, dayIndex int) string {
+	if dayIndex == 0 {
+		return "stable"
+	}
+
+	diff := currentScore - prevScore
+	if diff > 10 {
+		return "increasing"
+	} else if diff < -10 {
+		return "decreasing"
+	}
+	return "stable"
+}
+
+// getAlertMessageForRisk generates an alert message for forecast risk
+func (s *PestControlService) getAlertMessageForRisk(level models.RiskLevel, pestType string, daysAhead int) string {
+	dayLabel := "today"
+	if daysAhead == 1 {
+		dayLabel = "tomorrow"
+	} else if daysAhead > 1 {
+		dayLabel = fmt.Sprintf("in %d days", daysAhead)
+	}
+
+	pestName := "Olive Fly"
+	if pestType == "peacock_spot" {
+		pestName = "Peacock Spot"
+	}
+
+	switch level {
+	case models.RiskLevelCritical:
+		return fmt.Sprintf("Critical %s risk expected %s. Plan immediate intervention.", pestName, dayLabel)
+	case models.RiskLevelHigh:
+		return fmt.Sprintf("High %s risk expected %s. Prepare treatment.", pestName, dayLabel)
+	case models.RiskLevelModerate:
+		return fmt.Sprintf("Moderate %s risk expected %s. Monitor closely.", pestName, dayLabel)
+	case models.RiskLevelLow:
+		return fmt.Sprintf("Low %s risk expected %s.", pestName, dayLabel)
+	default:
+		return fmt.Sprintf("Minimal %s risk expected %s.", pestName, dayLabel)
+	}
+}
+
+// GetRiskForecast retrieves cached risk forecast predictions
+func (s *PestControlService) GetRiskForecast(parcelID uint, pestType models.PestType) ([]models.ForecastRiskPrediction, error) {
+	var predictions []models.ForecastRiskPrediction
+
+	query := initializers.DB.Where("parcel_id = ?", parcelID)
+
+	if pestType != "" {
+		query = query.Where("pest_type = ?", pestType)
+	}
+
+	err := query.Order("days_ahead ASC").Find(&predictions).Error
+
+	// Check if we need to refresh (older than 6 hours or empty)
+	if len(predictions) == 0 || (len(predictions) > 0 && time.Since(predictions[0].FetchedAt) > 6*time.Hour) {
+		freshPredictions, err := s.CalculateRiskForecast(parcelID)
+		if err == nil && len(freshPredictions) > 0 {
+			// Filter by pest type if specified
+			if pestType != "" {
+				var filtered []models.ForecastRiskPrediction
+				for _, p := range freshPredictions {
+					if p.PestType == pestType {
+						filtered = append(filtered, p)
+					}
+				}
+				return filtered, nil
+			}
+			return freshPredictions, nil
+		}
+	}
+
+	return predictions, err
+}
+
+// GetRiskSummary returns a summary of risk trends for all pests
+type RiskForecastSummary struct {
+	ParcelID          uint                        `json:"parcel_id"`
+	ParcelName        string                      `json:"parcel_name"`
+	GeneratedAt       time.Time                   `json:"generated_at"`
+	OliveFlyForecast  []DailyRiskSummary          `json:"olive_fly_forecast"`
+	PeacockSpotForecast []DailyRiskSummary        `json:"peacock_spot_forecast"`
+	Alerts            []string                    `json:"alerts"`
+	RecommendedActions []string                   `json:"recommended_actions"`
+}
+
+type DailyRiskSummary struct {
+	Date       string  `json:"date"`
+	DaysAhead  int     `json:"days_ahead"`
+	RiskScore  float64 `json:"risk_score"`
+	RiskLevel  string  `json:"risk_level"`
+	RiskTrend  string  `json:"risk_trend"`
+	Confidence float64 `json:"confidence"`
+}
+
+// GetRiskForecastSummary returns a comprehensive summary for display
+func (s *PestControlService) GetRiskForecastSummary(parcelID uint) (*RiskForecastSummary, error) {
+	predictions, err := s.GetRiskForecast(parcelID, "")
+	if err != nil {
+		return nil, err
+	}
+
+	// Get parcel name
+	var parcel models.Parcel
+	initializers.DB.First(&parcel, parcelID)
+
+	summary := &RiskForecastSummary{
+		ParcelID:    parcelID,
+		ParcelName:  parcel.Name,
+		GeneratedAt: time.Now(),
+		Alerts:      []string{},
+		RecommendedActions: []string{},
+	}
+
+	for _, p := range predictions {
+		dailySummary := DailyRiskSummary{
+			Date:       p.ForecastDate.Time.Format("2006-01-02"),
+			DaysAhead:  p.DaysAhead,
+			RiskScore:  p.RiskScore,
+			RiskLevel:  string(p.RiskLevel),
+			RiskTrend:  p.RiskTrend,
+			Confidence: p.Confidence,
+		}
+
+		if p.PestType == models.PestTypeOliveFly {
+			summary.OliveFlyForecast = append(summary.OliveFlyForecast, dailySummary)
+		} else if p.PestType == models.PestTypePeacockSpot {
+			summary.PeacockSpotForecast = append(summary.PeacockSpotForecast, dailySummary)
+		}
+
+		// Generate alerts for high/critical risks
+		if p.RiskLevel == models.RiskLevelCritical || p.RiskLevel == models.RiskLevelHigh {
+			summary.Alerts = append(summary.Alerts, p.AlertMessage)
+		}
+	}
+
+	// Generate recommended actions based on forecast
+	summary.RecommendedActions = s.generateRecommendedActions(summary)
+
+	return summary, nil
+}
+
+// generateRecommendedActions creates actionable recommendations based on forecast
+func (s *PestControlService) generateRecommendedActions(summary *RiskForecastSummary) []string {
+	actions := []string{}
+	
+	// Check for upcoming high/critical olive fly risk
+	for _, day := range summary.OliveFlyForecast {
+		if day.DaysAhead <= 3 && (day.RiskLevel == "high" || day.RiskLevel == "critical") {
+			if day.RiskTrend == "increasing" {
+				actions = append(actions, fmt.Sprintf("Olive Fly: Risk increasing - prepare Spinosad or Dimethoate spray for day %d", day.DaysAhead))
+			} else {
+				actions = append(actions, fmt.Sprintf("Olive Fly: High risk on day %d - check McPhail traps and consider treatment", day.DaysAhead))
+			}
+			break // Only add one fly action
+		}
+	}
+
+	// Check for upcoming peacock spot risk
+	for _, day := range summary.PeacockSpotForecast {
+		if day.DaysAhead <= 3 && (day.RiskLevel == "high" || day.RiskLevel == "critical") {
+			actions = append(actions, fmt.Sprintf("Peacock Spot: Infection risk on day %d - apply copper fungicide before rain", day.DaysAhead))
+			break
+		}
+	}
+
+	// Check for treatment windows (low risk, dry days)
+	for _, day := range summary.OliveFlyForecast {
+		if day.DaysAhead >= 1 && day.DaysAhead <= 3 && day.RiskLevel == "low" {
+			actions = append(actions, fmt.Sprintf("Good treatment window on day %d - favorable conditions for spray application", day.DaysAhead))
+			break
+		}
+	}
+
+	if len(actions) == 0 {
+		actions = append(actions, "Continue routine monitoring - no immediate action required")
+	}
+
+	return actions
+}

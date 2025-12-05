@@ -444,18 +444,14 @@ func (s *IrrigationService) GetWaterUsageStats(parcelID uint, startDate, endDate
 	}
 
 	// Calculate total rainfall and ET0 from weather data
-	var weatherRecords []models.Weather
-	if err := initializers.DB.Where("parcel_id = ? AND date BETWEEN ? AND ?", parcelID, startDate, endDate).
+	var weatherRecords []models.WeatherData
+	if err := initializers.DB.Where("parcel_id = ? AND fetched_at BETWEEN ? AND ?", parcelID, startDate, endDate).
 		Find(&weatherRecords).Error; err == nil {
 		totalRainfall := 0.0
 		totalET0 := 0.0
 		for _, weather := range weatherRecords {
-			if weather.Precipitation != nil {
-				totalRainfall += *weather.Precipitation
-			}
-			if weather.ET0 != nil {
-				totalET0 += *weather.ET0
-			}
+			totalRainfall += weather.Precipitation
+			totalET0 += weather.ET0
 		}
 		stats.TotalRainfall = totalRainfall
 		stats.TotalET0 = totalET0

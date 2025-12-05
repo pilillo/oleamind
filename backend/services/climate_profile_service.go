@@ -105,7 +105,7 @@ func (s *ClimateProfileService) UpdateFromWeatherHistory(parcelID uint) error {
 	if err := s.DB.First(&parcel, parcelID).Error; err != nil {
 		return fmt.Errorf("failed to fetch parcel: %w", err)
 	}
-	latitude := extractLatitudeFromGeometry(parcel.Geometry)
+	latitude := extractLatitudeFromGeometry(parcel.GeoJSON)
 
 	// Analyze weather patterns
 	characteristics := analyzeWeatherPatterns(weatherData, latitude)

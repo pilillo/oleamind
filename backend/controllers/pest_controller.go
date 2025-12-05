@@ -152,3 +152,69 @@ func GetMonitoringHistory(c *gin.Context) {
 	c.JSON(http.StatusOK, monitoring)
 }
 
+// GetRiskForecast returns 7-day pest/disease risk predictions
+// GET /pests/risk-forecast/:parcel_id
+func GetRiskForecast(c *gin.Context) {
+	parcelIDStr := c.Param("parcel_id")
+	parcelID, err := strconv.ParseUint(parcelIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid parcel ID"})
+		return
+	}
+
+	// Optional pest type filter
+	pestType := models.PestType(c.DefaultQuery("pest_type", ""))
+
+	service := services.NewPestControlService()
+	predictions, err := service.GetRiskForecast(uint(parcelID), pestType)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, predictions)
+}
+
+// GetRiskForecastSummary returns a comprehensive 7-day risk summary
+// GET /pests/risk-forecast/:parcel_id/summary
+func GetRiskForecastSummary(c *gin.Context) {
+	parcelIDStr := c.Param("parcel_id")
+	parcelID, err := strconv.ParseUint(parcelIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid parcel ID"})
+		return
+	}
+
+	service := services.NewPestControlService()
+	summary, err := service.GetRiskForecastSummary(uint(parcelID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, summary)
+}
+
+// RefreshRiskForecast forces a recalculation of 7-day risk predictions
+// POST /pests/risk-forecast/:parcel_id/refresh
+func RefreshRiskForecast(c *gin.Context) {
+	parcelIDStr := c.Param("parcel_id")
+	parcelID, err := strconv.ParseUint(parcelIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid parcel ID"})
+		return
+	}
+
+	service := services.NewPestControlService()
+	predictions, err := service.CalculateRiskForecast(uint(parcelID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":     "Risk forecast refreshed",
+		"predictions": len(predictions),
+	})
+}
+
