@@ -149,6 +149,9 @@ func main() {
 		protected.GET("/weather/conditions/:parcel_id", controllers.Get7DayConditions)
 		protected.GET("/weather/check-spray/:parcel_id", controllers.CheckSprayWindow)
 		protected.GET("/weather/check-irrigation/:parcel_id", controllers.CheckIrrigationWindow)
+		// Climate Profile (location-aware climate analysis)
+		protected.GET("/climate/:parcel_id", controllers.GetClimateProfile)
+		protected.POST("/climate/:parcel_id/refresh", controllers.RefreshClimateProfile)
 
 		// Irrigation Routes
 		protected.GET("/irrigation/recommendation/:parcel_id", controllers.GetIrrigationRecommendation)

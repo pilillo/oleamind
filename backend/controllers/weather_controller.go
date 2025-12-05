@@ -129,3 +129,55 @@ func CheckIrrigationWindow(c *gin.Context) {
 	})
 }
 
+// GetClimateProfile returns the climate profile for a parcel
+func GetClimateProfile(c *gin.Context) {
+	parcelIDStr := c.Param("parcel_id")
+	parcelID, err := strconv.ParseUint(parcelIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid parcel ID"})
+		return
+	}
+
+	climateService := services.NewClimateProfileService()
+	profile, err := climateService.GetOrCreateProfile(uint(parcelID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, profile)
+}
+
+// RefreshClimateProfile triggers a refresh of climate profile with historical data
+func RefreshClimateProfile(c *gin.Context) {
+	parcelIDStr := c.Param("parcel_id")
+	parcelID, err := strconv.ParseUint(parcelIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid parcel ID"})
+		return
+	}
+
+	climateService := services.NewClimateProfileService()
+
+	// Ensure profile exists first
+	_, err = climateService.GetOrCreateProfile(uint(parcelID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get profile: " + err.Error()})
+		return
+	}
+
+	// Enhance with historical data
+	if err := climateService.EnhanceProfileFromHistoricalData(uint(parcelID)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to enhance profile: " + err.Error()})
+		return
+	}
+
+	// Return updated profile
+	profile, _ := climateService.GetOrCreateProfile(uint(parcelID))
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "Climate profile enhanced with 5 years of historical data",
+		"profile": profile,
+	})
+}
+
