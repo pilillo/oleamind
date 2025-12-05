@@ -10,10 +10,102 @@ import (
 
 // WeatherAdvisoryService provides centralized weather-based advice
 // This is the single source of truth for all weather-related decisions across DSS features
-type WeatherAdvisoryService struct{}
+// It integrates with ClimateProfileService to consider location-based adjustments
+type WeatherAdvisoryService struct {
+	climateService *ClimateProfileService
+}
 
 func NewWeatherAdvisoryService() *WeatherAdvisoryService {
-	return &WeatherAdvisoryService{}
+	return &WeatherAdvisoryService{
+		climateService: NewClimateProfileService(),
+	}
+}
+
+// ParcelContext holds location-aware context for a parcel
+type ParcelContext struct {
+	ParcelID         uint
+	Latitude         float64
+	IsNorthern       bool
+	ClimateZone      string
+	IrrigationFactor float64 // Multiplier for irrigation thresholds
+	ETcMultiplier    float64 // Multiplier for evapotranspiration
+	IsDormant        bool    // Whether trees are in dormancy period
+	GrowingSeason    string  // "early", "mid", "late", "dormant"
+}
+
+// GetParcelContext retrieves location-aware context for a parcel
+func (s *WeatherAdvisoryService) GetParcelContext(parcelID uint) (*ParcelContext, error) {
+	// Get climate profile (location-aware)
+	profile, err := s.climateService.GetOrCreateProfile(parcelID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get climate profile: %w", err)
+	}
+
+	// Get parcel for latitude
+	var parcel models.Parcel
+	if err := initializers.DB.First(&parcel, parcelID).Error; err != nil {
+		return nil, fmt.Errorf("failed to get parcel: %w", err)
+	}
+
+	latitude := extractLatitudeFromParcel(parcel)
+	zone := getGlobalClimateZone(latitude)
+	currentMonth := int(time.Now().Month())
+
+	ctx := &ParcelContext{
+		ParcelID:         parcelID,
+		Latitude:         latitude,
+		IsNorthern:       latitude > 0,
+		ClimateZone:      zone.Name,
+		IrrigationFactor: profile.IrrigationFactor,
+		ETcMultiplier:    profile.ETcMultiplier,
+	}
+
+	// Determine if currently in dormancy (using profile data)
+	if profile.DormancyStartMonth != nil && profile.DormancyEndMonth != nil {
+		ctx.IsDormant = isInDormancyPeriodFromMonths(currentMonth, *profile.DormancyStartMonth, *profile.DormancyEndMonth)
+	}
+
+	// Determine growing season phase
+	ctx.GrowingSeason = getGrowingSeasonPhase(currentMonth, ctx.IsNorthern)
+
+	return ctx, nil
+}
+
+// getGrowingSeasonPhase returns the current phase of the olive growing season
+func getGrowingSeasonPhase(month int, isNorthern bool) string {
+	// Adjust for hemisphere
+	if !isNorthern {
+		// Southern hemisphere: shift by 6 months
+		month = ((month + 5) % 12) + 1
+	}
+
+	switch month {
+	case 1, 2, 12: // Dec-Feb (Northern) or Jun-Aug (Southern)
+		return "dormant"
+	case 3, 4: // Mar-Apr: Bud break, early growth
+		return "early"
+	case 5, 6, 7: // May-Jul: Flowering, fruit set
+		return "mid"
+	case 8, 9, 10, 11: // Aug-Nov: Fruit development, harvest
+		return "late"
+	default:
+		return "mid"
+	}
+}
+
+// isInDormancyPeriodFromMonths checks if current month is in dormancy
+func isInDormancyPeriodFromMonths(currentMonth, startMonth, endMonth int) bool {
+	if startMonth <= endMonth {
+		// Simple range (e.g., May to August in Southern hemisphere)
+		return currentMonth >= startMonth && currentMonth <= endMonth
+	}
+	// Wrapping range (e.g., November to February in Northern hemisphere)
+	return currentMonth >= startMonth || currentMonth <= endMonth
+}
+
+// extractLatitudeFromParcel extracts latitude from parcel geometry
+func extractLatitudeFromParcel(parcel models.Parcel) float64 {
+	return extractLatitudeFromGeometry(parcel.GeoJSON)
 }
 
 // ================================
@@ -76,7 +168,13 @@ type DayConditions struct {
 	WindSpeedMax     float64
 	WindGustMax      float64
 	ET0              float64
+	ET0Adjusted      float64 // ET0 adjusted by climate multiplier
 	SunshineDuration float64
+
+	// Location-aware context
+	ClimateZone   string
+	GrowingSeason string
+	IsDormant     bool
 
 	// Calculated conditions
 	IsDry         bool // < PrecipLight mm precipitation
@@ -90,8 +188,8 @@ type DayConditions struct {
 	PestRisk      bool // Conditions favor pests
 }
 
-// GetDayConditions analyzes weather data and returns structured conditions
-func (s *WeatherAdvisoryService) GetDayConditions(forecast *models.DailyForecast) DayConditions {
+// GetDayConditionsWithContext analyzes weather data with location-aware adjustments
+func (s *WeatherAdvisoryService) GetDayConditionsWithContext(forecast *models.DailyForecast, ctx *ParcelContext) DayConditions {
 	cond := DayConditions{
 		Date:             forecast.ForecastDate.Time,
 		DaysAhead:        forecast.DaysAhead,
@@ -105,7 +203,11 @@ func (s *WeatherAdvisoryService) GetDayConditions(forecast *models.DailyForecast
 		WindSpeedMax:     forecast.WindSpeedMax,
 		WindGustMax:      forecast.WindGustMax,
 		ET0:              forecast.ET0,
+		ET0Adjusted:      forecast.ET0 * ctx.ETcMultiplier, // Location-adjusted
 		SunshineDuration: forecast.SunshineDur,
+		ClimateZone:      ctx.ClimateZone,
+		GrowingSeason:    ctx.GrowingSeason,
+		IsDormant:        ctx.IsDormant,
 	}
 
 	// Calculate derived conditions
@@ -115,7 +217,9 @@ func (s *WeatherAdvisoryService) GetDayConditions(forecast *models.DailyForecast
 	cond.HasHeatRisk = forecast.TempMax >= TempExtreme
 
 	// Sprayable: dry, calm, moderate temperature, not too humid
-	cond.IsSprayable = cond.IsDry &&
+	// In dormant season, spraying is generally not needed
+	cond.IsSprayable = !ctx.IsDormant &&
+		cond.IsDry &&
 		cond.IsCalm &&
 		forecast.TempAvg >= TempOptSprayMin &&
 		forecast.TempAvg <= TempOptSprayMax &&
@@ -126,16 +230,25 @@ func (s *WeatherAdvisoryService) GetDayConditions(forecast *models.DailyForecast
 		forecast.SunshineDur > 4 &&
 		!cond.HasFrostRisk
 
-	// Irrigatable: no significant rain expected
-	cond.IsIrrigatable = forecast.PrecipitationSum < PrecipModerate &&
+	// Irrigatable: no significant rain expected AND not in dormancy
+	// Apply location-aware irrigation factor (lower value = irrigate earlier/more often)
+	irrigationRainThreshold := PrecipModerate * ctx.IrrigationFactor
+	cond.IsIrrigatable = !ctx.IsDormant &&
+		forecast.PrecipitationSum < irrigationRainThreshold &&
 		forecast.PrecipitationProb < 50
 
 	// Disease risk: wet + moderate temp (10-25°C)
-	cond.DiseaseRisk = (forecast.PrecipitationSum >= PrecipLight || forecast.HumidityMax >= HumidityHigh) &&
-		forecast.TempAvg >= 10 && forecast.TempAvg <= 25
+	// Peacock spot is more relevant in autumn/winter in Mediterranean climates
+	isDiseaseSeason := ctx.GrowingSeason == "late" || ctx.GrowingSeason == "dormant"
+	cond.DiseaseRisk = isDiseaseSeason &&
+		(forecast.PrecipitationSum >= PrecipLight || forecast.HumidityMax >= HumidityHigh) &&
+		forecast.TempAvg >= 5 && forecast.TempAvg <= 25
 
 	// Pest risk (olive fly): warm + moderate humidity + dry
-	cond.PestRisk = forecast.TempAvg >= TempOptPestMin &&
+	// Olive fly is active primarily in late spring through autumn (fruit development)
+	isPestSeason := ctx.GrowingSeason == "mid" || ctx.GrowingSeason == "late"
+	cond.PestRisk = isPestSeason &&
+		forecast.TempAvg >= TempOptPestMin &&
 		forecast.TempAvg <= TempOptPestMax &&
 		forecast.HumidityAvg >= 50 &&
 		forecast.PrecipitationSum < PrecipHeavy
@@ -143,10 +256,41 @@ func (s *WeatherAdvisoryService) GetDayConditions(forecast *models.DailyForecast
 	return cond
 }
 
-// Get7DayConditions retrieves conditions for the next 7 days
+// GetDayConditions is a convenience method that uses default context
+// Prefer GetDayConditionsWithContext for location-aware advice
+func (s *WeatherAdvisoryService) GetDayConditions(forecast *models.DailyForecast) DayConditions {
+	// Fallback to a default context if parcel not available
+	defaultCtx := &ParcelContext{
+		Latitude:         40.0, // Default Mediterranean
+		IsNorthern:       true,
+		ClimateZone:      "Central Mediterranean",
+		IrrigationFactor: 1.0,
+		ETcMultiplier:    1.0,
+		IsDormant:        false,
+		GrowingSeason:    "mid",
+	}
+	return s.GetDayConditionsWithContext(forecast, defaultCtx)
+}
+
+// Get7DayConditions retrieves conditions for the next 7 days with location awareness
 func (s *WeatherAdvisoryService) Get7DayConditions(parcelID uint) ([]DayConditions, error) {
+	// Get location-aware context
+	ctx, err := s.GetParcelContext(parcelID)
+	if err != nil {
+		// Fallback to default context
+		ctx = &ParcelContext{
+			ParcelID:         parcelID,
+			Latitude:         40.0,
+			IsNorthern:       true,
+			ClimateZone:      "Central Mediterranean",
+			IrrigationFactor: 1.0,
+			ETcMultiplier:    1.0,
+			GrowingSeason:    getGrowingSeasonPhase(int(time.Now().Month()), true),
+		}
+	}
+
 	var forecasts []models.DailyForecast
-	err := initializers.DB.Where("parcel_id = ?", parcelID).
+	err = initializers.DB.Where("parcel_id = ?", parcelID).
 		Order("days_ahead ASC").
 		Limit(7).
 		Find(&forecasts).Error
@@ -157,7 +301,7 @@ func (s *WeatherAdvisoryService) Get7DayConditions(parcelID uint) ([]DayConditio
 
 	conditions := make([]DayConditions, 0, len(forecasts))
 	for _, f := range forecasts {
-		conditions = append(conditions, s.GetDayConditions(&f))
+		conditions = append(conditions, s.GetDayConditionsWithContext(&f, ctx))
 	}
 
 	return conditions, nil
@@ -183,6 +327,14 @@ type WeatherAdvisory struct {
 	ParcelID         uint        `json:"parcel_id"`
 	ParcelName       string      `json:"parcel_name"`
 	GeneratedAt      time.Time   `json:"generated_at"`
+
+	// Location context
+	ClimateZone      string      `json:"climate_zone"`
+	GrowingSeason    string      `json:"growing_season"`
+	IsDormant        bool        `json:"is_dormant"`
+	Hemisphere       string      `json:"hemisphere"` // "northern" or "southern"
+
+	// Advisories
 	Advisories       []Advisory  `json:"advisories"`
 	BestSprayDay     int         `json:"best_spray_day"`     // -1 if none in next 7 days
 	BestIrrigateDay  int         `json:"best_irrigate_day"`  // -1 if none needed
@@ -191,6 +343,7 @@ type WeatherAdvisory struct {
 }
 
 // GenerateAdvisory creates comprehensive weather-based advice for a parcel
+// Takes location (latitude, climate zone) into account for seasonally-appropriate advice
 func (s *WeatherAdvisoryService) GenerateAdvisory(parcelID uint) (*WeatherAdvisory, error) {
 	// Get parcel info
 	var parcel models.Parcel
@@ -198,21 +351,49 @@ func (s *WeatherAdvisoryService) GenerateAdvisory(parcelID uint) (*WeatherAdviso
 		return nil, err
 	}
 
-	// Get 7-day conditions
+	// Get location-aware context
+	ctx, err := s.GetParcelContext(parcelID)
+	if err != nil {
+		// Use default context
+		ctx = &ParcelContext{
+			ParcelID:         parcelID,
+			Latitude:         40.0,
+			IsNorthern:       true,
+			ClimateZone:      "Central Mediterranean",
+			IrrigationFactor: 1.0,
+			ETcMultiplier:    1.0,
+			GrowingSeason:    getGrowingSeasonPhase(int(time.Now().Month()), true),
+		}
+	}
+
+	// Get 7-day conditions (already location-aware)
 	conditions, err := s.Get7DayConditions(parcelID)
 	if err != nil || len(conditions) == 0 {
 		return &WeatherAdvisory{
-			ParcelID:    parcelID,
-			ParcelName:  parcel.Name,
-			GeneratedAt: time.Now(),
-			Advisories:  []Advisory{{Type: "info", Priority: "low", Message: "Weather forecast not available"}},
+			ParcelID:      parcelID,
+			ParcelName:    parcel.Name,
+			GeneratedAt:   time.Now(),
+			ClimateZone:   ctx.ClimateZone,
+			GrowingSeason: ctx.GrowingSeason,
+			IsDormant:     ctx.IsDormant,
+			Hemisphere:    getHemisphereString(ctx.IsNorthern),
+			Advisories:    []Advisory{{Type: "info", Priority: "low", Message: "Weather forecast not available"}},
 		}, nil
+	}
+
+	hemisphere := "northern"
+	if !ctx.IsNorthern {
+		hemisphere = "southern"
 	}
 
 	advisory := &WeatherAdvisory{
 		ParcelID:         parcelID,
 		ParcelName:       parcel.Name,
 		GeneratedAt:      time.Now(),
+		ClimateZone:      ctx.ClimateZone,
+		GrowingSeason:    ctx.GrowingSeason,
+		IsDormant:        ctx.IsDormant,
+		Hemisphere:       hemisphere,
 		Advisories:       []Advisory{},
 		BestSprayDay:     -1,
 		BestIrrigateDay:  -1,
@@ -220,10 +401,24 @@ func (s *WeatherAdvisoryService) GenerateAdvisory(parcelID uint) (*WeatherAdviso
 		Warnings:         []string{},
 	}
 
-	// Find best spray day
+	// If dormant, add a general advisory about reduced activity
+	if ctx.IsDormant {
+		advisory.Advisories = append(advisory.Advisories, Advisory{
+			Type:     "info",
+			Priority: "info",
+			Message:  "Trees are in dormancy period - reduced irrigation and pest monitoring needed",
+			Reason:   fmt.Sprintf("Current season: %s, Climate zone: %s", ctx.GrowingSeason, ctx.ClimateZone),
+			Action:   "Focus on pruning, equipment maintenance, and orchard cleanup",
+		})
+	}
+
+	// Find best spray day (considering dormancy)
 	for _, c := range conditions {
-		if c.IsTreatWindow && advisory.BestSprayDay == -1 {
+		if c.IsTreatWindow && advisory.BestSprayDay == -1 && !ctx.IsDormant {
 			advisory.BestSprayDay = c.DaysAhead
+		}
+		if c.IsIrrigatable && advisory.BestIrrigateDay == -1 && !ctx.IsDormant && c.ET0Adjusted > 3.0 {
+			advisory.BestIrrigateDay = c.DaysAhead
 		}
 		if c.Precipitation >= PrecipModerate {
 			advisory.RainExpectedDays = append(advisory.RainExpectedDays, c.DaysAhead)
@@ -511,5 +706,13 @@ func (s *WeatherAdvisoryService) GetBestTreatmentWindow(parcelID uint, maxDays i
 	}
 
 	return -1, "No suitable treatment window in next " + fmt.Sprintf("%d", maxDays) + " days"
+}
+
+// getHemisphereString returns "northern" or "southern" based on latitude
+func getHemisphereString(isNorthern bool) string {
+	if isNorthern {
+		return "northern"
+	}
+	return "southern"
 }
 

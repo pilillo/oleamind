@@ -4,6 +4,11 @@
 
 The Weather Advisory System provides a **single source of truth** for all weather-based decisions in the OleaMind DSS. This ensures consistency between pest management, irrigation scheduling, and treatment planning.
 
+**Location-Aware**: The system considers parcel location (latitude, hemisphere, climate zone) to provide seasonally-appropriate advice. For example:
+- Southern hemisphere parcels have inverted seasons
+- Subtropical zones have different dormancy periods
+- Climate-adjusted irrigation thresholds based on evapotranspiration rates
+
 ## Centralized Thresholds
 
 All weather-related decisions use these consistent thresholds defined in `weather_advisory_service.go`:
@@ -53,26 +58,69 @@ All weather-related decisions use these consistent thresholds defined in `weathe
 | `TreatmentCooldown` | 24 | Hours after treatment before irrigation |
 | `IrrigationCooldown` | 12 | Hours after irrigation before treatment |
 
+## Location-Aware Context
+
+The system extracts location information from parcel geometry and adjusts advice accordingly:
+
+```go
+type ParcelContext struct {
+    ParcelID         uint
+    Latitude         float64  // Extracted from parcel GeoJSON
+    IsNorthern       bool     // Determines season calculation
+    ClimateZone      string   // Subtropical, Warm/Central/Cool Mediterranean
+    IrrigationFactor float64  // 0.8 (subtropical) to 1.1 (cool)
+    ETcMultiplier    float64  // 0.9 (cool) to 1.2 (subtropical)
+    IsDormant        bool     // Based on current month + hemisphere
+    GrowingSeason    string   // "early", "mid", "late", "dormant"
+}
+```
+
+### Climate Zones
+
+| Latitude Range | Zone | Irrigation Factor | ETc Multiplier |
+|---------------|------|-------------------|----------------|
+| < 30° | Subtropical | 0.80 (irrigate sooner) | 1.20 (higher evaporation) |
+| 30-38° | Warm Mediterranean | 0.85 | 1.15 |
+| 38-42° | Central Mediterranean | 1.00 | 1.00 |
+| > 42° | Cool Mediterranean | 1.10 (tolerate more) | 0.90 (lower evaporation) |
+
+### Growing Seasons (Olive Trees)
+
+**Northern Hemisphere:**
+- **Dormant**: Dec-Feb (winter rest)
+- **Early**: Mar-Apr (bud break, early growth)
+- **Mid**: May-Jul (flowering, fruit set)
+- **Late**: Aug-Nov (fruit development, harvest)
+
+**Southern Hemisphere:** Seasons shifted by 6 months.
+
 ## Day Condition Analysis
 
-The system analyzes each day's weather and calculates:
+The system analyzes each day's weather with location-aware adjustments:
 
 ```go
 type DayConditions struct {
+    // Location context
+    ClimateZone   string  // From parcel location
+    GrowingSeason string  // Calculated from date + hemisphere
+    IsDormant     bool    // Affects all recommendations
+    ET0Adjusted   float64 // ET0 × climate multiplier
+    
+    // Weather conditions
     IsDry         bool  // < 1mm precipitation
     IsCalm        bool  // < 20 km/h wind
-    IsSprayable   bool  // Dry + calm + temp 10-30°C + humidity < 90%
+    IsSprayable   bool  // Dry + calm + temp 10-30°C + not dormant
     IsTreatWindow bool  // Sprayable + sunny + no frost
-    IsIrrigatable bool  // < 5mm rain expected + < 50% rain probability
-    DiseaseRisk   bool  // Wet + moderate temp (10-25°C)
-    PestRisk      bool  // Warm (15-30°C) + moderate humidity + dry
+    IsIrrigatable bool  // < rain threshold × irrigation_factor, not dormant
+    DiseaseRisk   bool  // Wet + moderate temp + disease season (late/dormant)
+    PestRisk      bool  // Warm + humid + pest season (mid/late)
 }
 ```
 
 ## API Endpoints
 
 ### GET `/weather/advisory/:parcel_id`
-Returns comprehensive, prioritized advice for the next 7 days.
+Returns comprehensive, prioritized advice for the next 7 days, with location context.
 
 **Response:**
 ```json
@@ -80,9 +128,37 @@ Returns comprehensive, prioritized advice for the next 7 days.
   "parcel_id": 1,
   "parcel_name": "Uliveto Nord",
   "generated_at": "2025-12-05T10:00:00Z",
+  
+  "climate_zone": "Central Mediterranean",
+  "growing_season": "dormant",
+  "is_dormant": true,
+  "hemisphere": "northern",
+  
+  "best_spray_day": -1,
+  "best_irrigate_day": -1,
+  "rain_expected_days": [3, 5],
+  "advisories": [
+    {
+      "type": "info",
+      "priority": "info",
+      "message": "Trees are in dormancy period - reduced irrigation and pest monitoring needed",
+      "reason": "Current season: dormant, Climate zone: Central Mediterranean",
+      "action": "Focus on pruning, equipment maintenance, and orchard cleanup"
+    }
+  ],
+  "warnings": []
+}
+```
+
+**Non-dormant example (summer):**
+```json
+{
+  "climate_zone": "Warm Mediterranean",
+  "growing_season": "mid",
+  "is_dormant": false,
+  "hemisphere": "northern",
   "best_spray_day": 2,
   "best_irrigate_day": 0,
-  "rain_expected_days": [3, 5],
   "advisories": [
     {
       "type": "treatment",
@@ -92,9 +168,6 @@ Returns comprehensive, prioritized advice for the next 7 days.
       "reason": "Dry conditions now, rain expected soon",
       "action": "Apply any planned treatments, allow 4-6h drying"
     }
-  ],
-  "warnings": [
-    "Day 2: If treating, irrigate in morning and spray in evening"
   ]
 }
 ```
