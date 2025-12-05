@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Trees, TreeDeciduous, Map as MapIcon, Activity, AlertTriangle, Droplets, Clock, Cloud, Thermometer, MapPin } from 'lucide-react'
+import { Trees, TreeDeciduous, Map as MapIcon, Activity, AlertTriangle, Droplets, Clock, Cloud, Thermometer, MapPin, Calendar, Bug, Leaf, TrendingUp, TrendingDown } from 'lucide-react'
 import { apiCall } from '../config'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -35,13 +35,22 @@ interface Operation {
   CreatedAt?: string
 }
 
+interface ForecastSummary {
+  parcel_id: number
+  parcel_name: string
+  alerts: string[]
+  olive_fly_forecast: { date: string; days_ahead: number; risk_level: string; risk_trend: string }[]
+  peacock_spot_forecast: { date: string; days_ahead: number; risk_level: string; risk_trend: string }[]
+}
+
 function Dashboard() {
-  const { } = useTranslation()
+  const { t } = useTranslation()
   const { loading: authLoading } = useAuth()
   const [parcels, setParcels] = useState<Parcel[]>([])
   const [weatherData, setWeatherData] = useState<Map<number, WeatherData>>(new Map())
   const [irrigationData, setIrrigationData] = useState<Map<number, any>>(new Map())
   const [pestData, setPestData] = useState<Map<number, any[]>>(new Map())
+  const [forecastData, setForecastData] = useState<Map<number, ForecastSummary>>(new Map())
   const [inventory, setInventory] = useState<InventoryItem[]>([])
   const [operations, setOperations] = useState<Operation[]>([])
 
@@ -102,9 +111,42 @@ function Dashboard() {
         setWeatherData(weatherMap)
         setIrrigationData(irrigationMap)
         setPestData(pestMap)
+
+        // Fetch 7-day forecasts for all parcels (non-blocking)
+        fetchForecasts(data)
       }
     } catch (err) {
       console.error('Failed to fetch parcels and weather', err)
+    }
+  }
+
+  const fetchForecasts = async (parcels: Parcel[]) => {
+    try {
+      const forecastPromises = parcels.map(async (parcel: Parcel) => {
+        try {
+          const response = await apiCall(`/pests/risk-forecast/${parcel.ID}/summary`)
+          if (response.ok) {
+            const data = await response.json()
+            return { parcelId: parcel.ID, forecast: data }
+          }
+          return null
+        } catch {
+          return null
+        }
+      })
+
+      const results = await Promise.all(forecastPromises)
+      const forecastMap = new Map<number, ForecastSummary>()
+
+      results.forEach(result => {
+        if (result && result.forecast) {
+          forecastMap.set(result.parcelId, result.forecast)
+        }
+      })
+
+      setForecastData(forecastMap)
+    } catch (err) {
+      console.error('Failed to fetch forecasts', err)
     }
   }
 
@@ -522,6 +564,97 @@ function Dashboard() {
             </div>
           )}
         </div>
+
+        {/* 7-Day Risk Forecast Overview */}
+        {forecastData.size > 0 && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-semibold mb-4 text-gray-900 flex items-center gap-2">
+              <Calendar size={20} className="text-gray-400" />
+              {t('forecast.title')}
+            </h2>
+            <div className="space-y-3">
+              {Array.from(forecastData.entries()).map(([parcelId, forecast]) => {
+                const parcel = parcels.find(p => p.ID === parcelId)
+                
+                // Find the highest risk in the next 3 days
+                const getHighestRisk = (forecastDays: { risk_level: string; days_ahead: number }[]) => {
+                  const next3Days = forecastDays.filter(d => d.days_ahead <= 2)
+                  const riskOrder = ['critical', 'high', 'moderate', 'low', 'none']
+                  return next3Days.reduce((highest, day) => {
+                    const currentIndex = riskOrder.indexOf(day.risk_level)
+                    const highestIndex = riskOrder.indexOf(highest)
+                    return currentIndex < highestIndex ? day.risk_level : highest
+                  }, 'none')
+                }
+
+                const flyRisk = getHighestRisk(forecast.olive_fly_forecast)
+                const spotRisk = getHighestRisk(forecast.peacock_spot_forecast)
+                const hasHighRisk = flyRisk === 'critical' || flyRisk === 'high' || spotRisk === 'critical' || spotRisk === 'high'
+                
+                // Find if risk is increasing
+                const flyTrend = forecast.olive_fly_forecast.find(d => d.days_ahead === 1)?.risk_trend
+                const spotTrend = forecast.peacock_spot_forecast.find(d => d.days_ahead === 1)?.risk_trend
+
+                const getRiskColor = (level: string) => {
+                  switch (level) {
+                    case 'critical': return 'bg-red-100 text-red-700 border-red-300'
+                    case 'high': return 'bg-orange-100 text-orange-700 border-orange-300'
+                    case 'moderate': return 'bg-amber-100 text-amber-700 border-amber-300'
+                    case 'low': return 'bg-yellow-100 text-yellow-700 border-yellow-300'
+                    default: return 'bg-green-100 text-green-700 border-green-300'
+                  }
+                }
+
+                return (
+                  <div 
+                    key={parcelId} 
+                    className={`p-3 rounded-lg border ${hasHighRisk ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200'}`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-medium text-gray-800">{parcel?.name || `Parcel ${parcelId}`}</h3>
+                      {forecast.alerts.length > 0 && (
+                        <span className="text-xs text-orange-600">{forecast.alerts.length} alert{forecast.alerts.length > 1 ? 's' : ''}</span>
+                      )}
+                    </div>
+                    <div className="flex gap-3">
+                      {/* Olive Fly */}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Bug size={12} className="text-amber-600" />
+                          <span className="text-[10px] text-gray-500">{t('pests.pests.olive_fly')}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded border ${getRiskColor(flyRisk)}`}>
+                            {t(`pests.risk_levels.${flyRisk}`)}
+                          </span>
+                          {flyTrend === 'increasing' && <TrendingUp size={10} className="text-red-500" />}
+                          {flyTrend === 'decreasing' && <TrendingDown size={10} className="text-green-500" />}
+                        </div>
+                      </div>
+                      {/* Peacock Spot */}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Leaf size={12} className="text-green-600" />
+                          <span className="text-[10px] text-gray-500">{t('pests.pests.peacock_spot')}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded border ${getRiskColor(spotRisk)}`}>
+                            {t(`pests.risk_levels.${spotRisk}`)}
+                          </span>
+                          {spotTrend === 'increasing' && <TrendingUp size={10} className="text-red-500" />}
+                          {spotTrend === 'decreasing' && <TrendingDown size={10} className="text-green-500" />}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <p className="text-[10px] text-gray-400 text-center mt-3">
+              {t('forecast.peak_this_week')} • See Parcels page for details
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )
