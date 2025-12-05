@@ -14,6 +14,9 @@ import AnalyticsDashboard from './pages/AnalyticsDashboard'
 import Users from './pages/Users'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
+import VerifyEmail from './pages/VerifyEmail'
 import './i18n/config'
 import './index.css'
 
@@ -111,7 +114,7 @@ function Sidebar() {
 
 function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation()
-  const publicRoutes = ['/login', '/register', '/forgot-password', '/reset-password']
+  const publicRoutes = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email']
 
   if (publicRoutes.includes(location.pathname)) {
     return <>{children}</>
@@ -140,6 +143,9 @@ function AppRoutes() {
       {/* Public routes */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
 
       {/* Protected routes */}
       <Route path="/dashboard" element={

@@ -425,6 +425,21 @@ Owner (Full Control)
 
 ### 📋 Pending Features
 - ⏳ 9. Analytics & Reporting (advanced dashboards beyond current implementation)
+  - ✅ Multi-year yield trends
+  - ✅ Cost efficiency analysis
+  - ✅ Parcel comparison
+  - ✅ PDF export
+  - ⏳ Automated email reports
+  - ⏳ Predictive analytics
+  
+### ✅ Recently Completed (Latest)
+- ✅ **Email Verification & Password Reset** (Backend + Frontend)
+  - Email service with SMTP support and fallback logging
+  - Verification emails on registration
+  - Password reset flow with secure tokens
+  - Frontend pages: ForgotPassword, ResetPassword, VerifyEmail
+  - Comprehensive documentation in EMAIL_CONFIGURATION.md
+  - Works with or without SMTP configuration (logs to console in dev)
 
 ## Technology Stack
 
