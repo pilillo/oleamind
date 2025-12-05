@@ -250,7 +250,24 @@
     "error": "Errore",
     "success": "Successo",
     "confirm": "Conferma",
-    "close": "Chiudi"
+    "close": "Chiudi",
+    "try_again": "Riprova"
+  },
+  "forecast": {
+    "title": "Previsione Rischio 7 Giorni",
+    "loading": "Caricamento previsione...",
+    "error_loading": "Impossibile caricare la previsione",
+    "no_data": "Nessun dato di previsione disponibile",
+    "today": "Oggi",
+    "tomorrow": "Domani",
+    "updated": "Aggiornato:",
+    "refresh": "Aggiorna previsione",
+    "alerts": "Avvisi in Arrivo",
+    "recommended_actions": "Azioni Consigliate",
+    "peak_this_week": "picco questa settimana",
+    "peak_critical": "Picco critico",
+    "peak_high": "Rischio alto",
+    "peak_moderate": "Rischio moderato"
   },
   "analytics": {
     "title": "Analisi e Reportistica",

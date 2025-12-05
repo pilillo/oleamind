@@ -10,6 +10,7 @@ import { TreeDeciduous, MapPin, Ruler, Calendar, Trash2, Edit2, Save, X, Plus, S
 import { apiCall } from '../config'
 import { useAuth } from '../contexts/AuthContext'
 import { SatelliteInsights } from '../components/satellite/SatelliteInsights'
+import { RiskForecastPanel } from '../components/pests/RiskForecastPanel'
 
 // Helper function to convert month number to name
 const getMonthName = (month: number): string => {
@@ -1795,6 +1796,13 @@ function Parcels() {
                     <p className="text-[10px] text-gray-400 text-center mt-3">
                       Based on current weather conditions
                     </p>
+                  </div>
+                )}
+
+                {/* 7-Day Risk Forecast Panel */}
+                {!isEditing && selectedParcel && (
+                  <div className="mt-6 pt-6 border-t border-gray-100">
+                    <RiskForecastPanel parcelId={selectedParcel.ID} />
                   </div>
                 )}
 

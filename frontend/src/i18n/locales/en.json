@@ -250,7 +250,24 @@
     "error": "Error",
     "success": "Success",
     "confirm": "Confirm",
-    "close": "Close"
+    "close": "Close",
+    "try_again": "Try again"
+  },
+  "forecast": {
+    "title": "7-Day Risk Forecast",
+    "loading": "Loading forecast...",
+    "error_loading": "Failed to load forecast",
+    "no_data": "No forecast data available",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "updated": "Updated:",
+    "refresh": "Refresh forecast",
+    "alerts": "Upcoming Alerts",
+    "recommended_actions": "Recommended Actions",
+    "peak_this_week": "peak this week",
+    "peak_critical": "Critical peak",
+    "peak_high": "High risk",
+    "peak_moderate": "Moderate risk"
   },
   "analytics": {
     "title": "Analytics & Reporting",
