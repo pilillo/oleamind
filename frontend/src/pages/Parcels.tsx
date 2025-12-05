@@ -740,25 +740,20 @@ function Parcels() {
                 maxNativeZoom={19}
               />
             </LayersControl.BaseLayer>
-            <LayersControl.BaseLayer name="Satellite (Esri)">
-              <TileLayer
-                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                maxZoom={20}
-                maxNativeZoom={18}
-                attribution='&copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
-              />
-            </LayersControl.BaseLayer>
             <LayersControl.BaseLayer name="Satellite with Labels">
-              <TileLayer
-                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                attribution='&copy; Esri'
-                maxZoom={19}
-              />
-              <TileLayer
-                url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
-                attribution='&copy; Esri'
-                maxZoom={19}
-              />
+              <>
+                <TileLayer
+                  url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                  attribution='&copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+                  maxZoom={20}
+                  maxNativeZoom={18}
+                />
+                <TileLayer
+                  url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+                  attribution='&copy; Esri'
+                  maxZoom={19}
+                />
+              </>
             </LayersControl.BaseLayer>
           </LayersControl>
           <MapController bounds={mapBounds} />
