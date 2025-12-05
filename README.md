@@ -433,6 +433,17 @@ Owner (Full Control)
   - ⏳ Predictive analytics
   
 ### ✅ Recently Completed (Latest)
+
+- ✅ **7-Day Weather Forecast & Risk Prediction** (Backend Complete)
+  - Extended Open-Meteo integration to 7 days
+  - Daily forecasts: temperature, humidity, precipitation, wind, ET0, UV, sunshine
+  - 7-day pest risk predictions for Olive Fly and Peacock Spot
+  - Risk trend analysis (increasing/stable/decreasing)
+  - Confidence scoring (100% today → 40% at day 7)
+  - Actionable alerts and recommended actions
+  - Foundation for all DSS features
+  - 📖 See `doc/7DAY_FORECAST_DSS.md`
+
 - ✅ **Email Verification & Password Reset** (Backend + Frontend)
   - Email service with SMTP support and fallback logging
   - Verification emails on registration
