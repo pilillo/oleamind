@@ -100,8 +100,15 @@ func (s *ClimateProfileService) UpdateFromWeatherHistory(parcelID uint) error {
 		return nil // Not enough data yet, keep using fallback
 	}
 
+	// Get parcel to extract latitude for hemisphere detection
+	var parcel models.Parcel
+	if err := s.DB.First(&parcel, parcelID).Error; err != nil {
+		return fmt.Errorf("failed to fetch parcel: %w", err)
+	}
+	latitude := extractLatitudeFromGeometry(parcel.Geometry)
+
 	// Analyze weather patterns
-	characteristics := analyzeWeatherPatterns(weatherData)
+	characteristics := analyzeWeatherPatterns(weatherData, latitude)
 
 	// Update profile with learned characteristics
 	firstDate := weatherData[0].FetchedAt
@@ -283,7 +290,7 @@ type ClimateCharacteristics struct {
 }
 
 // analyzeWeatherPatterns extracts climate characteristics from weather history
-func analyzeWeatherPatterns(data []models.WeatherData) ClimateCharacteristics {
+func analyzeWeatherPatterns(data []models.WeatherData, latitude float64) ClimateCharacteristics {
 	if len(data) == 0 {
 		return ClimateCharacteristics{
 			IrrigationFactor: 1.0,
@@ -294,12 +301,23 @@ func analyzeWeatherPatterns(data []models.WeatherData) ClimateCharacteristics {
 	var winterRain, summerET float64
 	var winterCount, summerCount, coldDays int
 
+	// Detect hemisphere from latitude
+	isNorthern := latitude >= 0
+
 	for _, d := range data {
 		month := d.FetchedAt.Month()
 
-		// Northern Hemisphere seasons (TODO: detect hemisphere from latitude)
-		isWinter := month >= 11 || month <= 2
-		isSummer := month >= 6 && month <= 8
+		// Season detection based on hemisphere
+		var isWinter, isSummer bool
+		if isNorthern {
+			// Northern Hemisphere: Winter (Nov-Feb), Summer (Jun-Aug)
+			isWinter = month >= 11 || month <= 2
+			isSummer = month >= 6 && month <= 8
+		} else {
+			// Southern Hemisphere: Winter (May-Aug), Summer (Dec-Feb)
+			isWinter = month >= 5 && month <= 8
+			isSummer = month >= 12 || month <= 2
+		}
 
 		if isWinter {
 			winterRain += d.RainNext24h
