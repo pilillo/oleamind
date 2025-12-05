@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { MapContainer, TileLayer, GeoJSON, useMap, LayersControl, ImageOverlay, useMapEvents } from 'react-leaflet'
+import { MapContainer, TileLayer, GeoJSON, useMap, LayersControl, ImageOverlay, useMapEvents, LayerGroup } from 'react-leaflet'
 // @ts-ignore
 import { EditControl } from 'react-leaflet-draw'
 import L from 'leaflet'
@@ -805,7 +805,7 @@ function Parcels() {
               />
             </LayersControl.BaseLayer>
             <LayersControl.BaseLayer name="Satellite with Labels">
-              <>
+              <LayerGroup>
                 <TileLayer
                   url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
                   attribution='&copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
@@ -817,7 +817,7 @@ function Parcels() {
                   attribution='&copy; Esri'
                   maxZoom={19}
                 />
-              </>
+              </LayerGroup>
             </LayersControl.BaseLayer>
           </LayersControl>
           <MapController bounds={mapBounds} />
