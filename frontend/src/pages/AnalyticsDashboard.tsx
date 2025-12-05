@@ -42,7 +42,7 @@ export default function AnalyticsDashboard() {
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">{t('analytics.title')}</h1>
-                    <p className="text-gray-500">Insights into your production, processing, and sales performance</p>
+                    <p className="text-gray-500">{t('analytics.subtitle')}</p>
                 </div>
             </div>
 
@@ -86,7 +86,7 @@ export default function AnalyticsDashboard() {
                         }`}
                 >
                     <Sprout size={16} />
-                    Production
+                    {t('analytics.tabs.production')}
                 </button>
                 <button
                     onClick={() => setActiveTab('processing')}
@@ -96,7 +96,7 @@ export default function AnalyticsDashboard() {
                         }`}
                 >
                     <FlaskConical size={16} />
-                    Processing
+                    {t('analytics.tabs.processing')}
                 </button>
                 <button
                     onClick={() => setActiveTab('sales')}
@@ -106,7 +106,7 @@ export default function AnalyticsDashboard() {
                         }`}
                 >
                     <DollarSign size={16} />
-                    Sales
+                    {t('analytics.tabs.sales')}
                 </button>
             </div>
 

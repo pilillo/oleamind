@@ -254,10 +254,14 @@
   },
   "analytics": {
     "title": "Analytics & Reporting",
+    "subtitle": "Insights into your production, processing, and sales performance",
     "tabs": {
       "trends": "Trends",
       "costs": "Costs",
-      "comparison": "Comparison"
+      "comparison": "Comparison",
+      "production": "Production",
+      "processing": "Processing",
+      "sales": "Sales"
     },
     "trends": {
       "title": "Multi-Year Yield Trends",

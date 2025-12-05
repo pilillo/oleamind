@@ -254,10 +254,14 @@
   },
   "analytics": {
     "title": "Analisi e Reportistica",
+    "subtitle": "Approfondimenti su produzione, lavorazione e vendite",
     "tabs": {
       "trends": "Trend",
       "costs": "Costi",
-      "comparison": "Confronto"
+      "comparison": "Confronto",
+      "production": "Produzione",
+      "processing": "Lavorazione",
+      "sales": "Vendite"
     },
     "trends": {
       "title": "Trend Resa Pluriennale",
