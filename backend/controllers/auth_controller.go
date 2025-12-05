@@ -3,6 +3,7 @@ package controllers
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/oleamind/backend/initializers"
 	"github.com/oleamind/backend/models"
+	"github.com/oleamind/backend/utils"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -104,7 +106,14 @@ func Register(c *gin.Context) {
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie("Authorization", tokenString, 3600*24, "", "", false, true)
 
-	// TODO: Send verification email
+	// Send verification email
+	emailService := utils.NewEmailService()
+	if err := emailService.SendVerificationEmail(user.Email, verificationToken); err != nil {
+		slog.Warn("Failed to send verification email",
+			"email", user.Email,
+			"error", err)
+		// Don't fail registration if email fails
+	}
 
 	// Build farms array with roles (user is owner of the newly created farm)
 	farms := []gin.H{
@@ -314,7 +323,14 @@ func ForgotPassword(c *gin.Context) {
 
 	initializers.DB.Save(&user)
 
-	// TODO: Send reset email
+	// Send reset email
+	emailService := utils.NewEmailService()
+	if err := emailService.SendPasswordResetEmail(user.Email, resetToken); err != nil {
+		slog.Warn("Failed to send password reset email",
+			"email", user.Email,
+			"error", err)
+		// Don't fail the request if email fails
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "If the email exists, a reset link has been sent"})
 }

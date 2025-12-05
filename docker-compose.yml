@@ -30,6 +30,13 @@ services:
       WORKER_URL: http://worker:5000
       SECRET: oleamind-secret-key-change-in-production
       PURGE_NDVI_CACHE_ON_STARTUP: "true"  # Set to "true" to clear cache on startup
+      # Email configuration (optional - emails will be logged if not configured)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@oleamind.com}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
 
   worker:
     build: ./satellite-worker
