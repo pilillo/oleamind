@@ -137,6 +137,10 @@ function Parcels() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
   const sidebarRef = useRef<HTMLDivElement>(null)
+  
+  // Left sidebar state
+  const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false)
+  
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState('')
   const [editArea, setEditArea] = useState('')
@@ -712,84 +716,156 @@ function Parcels() {
 
   return (
     <div className="h-full flex">
-      {/* Sidebar */}
-      <div className="w-80 bg-white border-r border-gray-200 flex flex-col h-full shadow-xl z-10">
-        <div className="p-5 border-b border-gray-100 bg-gray-50">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-              <MapPin size={18} className="text-green-600" />
-              Parcels
-            </h2>
-            <span className="bg-white px-2 py-1 rounded-md text-xs font-medium text-gray-500 border border-gray-200 shadow-sm">
-              {parcels.length}
-            </span>
-          </div>
-
-          <button
-            onClick={() => {
-              setIsCreating(!isCreating)
-              setSelectedParcel(null) // Deselect any parcel
-              setShowInfoPanel(false)
-            }}
-            className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${isCreating
-              ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              : 'bg-green-600 text-white hover:bg-green-700 shadow-sm hover:shadow'
-              }`}
-          >
-            {isCreating ? (
-              <>
-                <X size={16} /> Cancel Creation
-              </>
-            ) : (
-              <>
-                <Plus size={16} /> Add New Parcel
-              </>
-            )}
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50">
-          {isCreating && !newParcelGeometry && (
-            <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-center animate-pulse">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                <MousePointerClick size={20} className="text-blue-600" />
-              </div>
-              <h3 className="text-sm font-semibold text-blue-800 mb-1">Draw on Map</h3>
-              <p className="text-xs text-blue-600">
-                Use the drawing tools on the map to outline your new parcel.
-              </p>
-            </div>
-          )}
-
-          {parcels.map((parcel: any) => (
-            <div
-              key={parcel.ID}
-              onClick={() => zoomToParcel(parcel)}
-              className={`group relative p-4 rounded-xl cursor-pointer transition-all duration-200 border ${selectedParcel?.ID === parcel.ID
-                ? 'bg-white border-green-500 shadow-md ring-1 ring-green-500/20'
-                : 'bg-white border-gray-200 hover:border-green-300 hover:shadow-sm'
-                }`}
+      {/* Left Sidebar - Parcel List */}
+      <div 
+        className={`bg-white border-r border-gray-200 flex flex-col h-full shadow-xl z-10 transition-all duration-300 ${
+          isLeftSidebarCollapsed ? 'w-14' : 'w-80'
+        }`}
+      >
+        {/* Collapsed View */}
+        {isLeftSidebarCollapsed ? (
+          <div className="flex flex-col items-center py-4 h-full">
+            <button
+              onClick={() => setIsLeftSidebarCollapsed(false)}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors mb-4"
+              title="Expand sidebar"
             >
-              <div className="flex justify-between items-start mb-2">
-                <h3 className={`font-semibold text-sm ${selectedParcel?.ID === parcel.ID ? 'text-green-700' : 'text-gray-700 group-hover:text-green-600'}`}>
-                  {parcel.name}
-                </h3>
-                {parcel.geojson && <span className="flex h-2 w-2 rounded-full bg-green-500"></span>}
+              <ChevronRight size={20} className="text-gray-600" />
+            </button>
+            
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex flex-col items-center">
+                <MapPin size={18} className="text-green-600 mb-1" />
+                <span className="text-xs font-bold text-gray-700">{parcels.length}</span>
+              </div>
+              
+              <button
+                onClick={() => {
+                  setIsLeftSidebarCollapsed(false)
+                  setIsCreating(!isCreating)
+                  setSelectedParcel(null)
+                  setShowInfoPanel(false)
+                }}
+                className={`p-2 rounded-lg transition-all ${isCreating
+                  ? 'bg-gray-200 text-gray-700'
+                  : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
+                title={isCreating ? 'Cancel' : 'Add Parcel'}
+              >
+                {isCreating ? <X size={16} /> : <Plus size={16} />}
+              </button>
+            </div>
+            
+            {/* Mini parcel indicators */}
+            <div className="flex-1 overflow-y-auto mt-4 w-full px-2">
+              {parcels.map((parcel: any) => (
+                <button
+                  key={parcel.ID}
+                  onClick={() => zoomToParcel(parcel)}
+                  className={`w-full p-2 mb-1 rounded-lg transition-all ${
+                    selectedParcel?.ID === parcel.ID
+                      ? 'bg-green-100 border-2 border-green-500'
+                      : 'hover:bg-gray-100 border-2 border-transparent'
+                  }`}
+                  title={parcel.name}
+                >
+                  <div className={`w-2 h-2 rounded-full mx-auto ${
+                    selectedParcel?.ID === parcel.ID ? 'bg-green-500' : 'bg-gray-400'
+                  }`} />
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          /* Expanded View */
+          <>
+            <div className="p-5 border-b border-gray-100 bg-gray-50">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                  <MapPin size={18} className="text-green-600" />
+                  Parcels
+                </h2>
+                <div className="flex items-center gap-2">
+                  <span className="bg-white px-2 py-1 rounded-md text-xs font-medium text-gray-500 border border-gray-200 shadow-sm">
+                    {parcels.length}
+                  </span>
+                  <button
+                    onClick={() => setIsLeftSidebarCollapsed(true)}
+                    className="p-1 hover:bg-gray-200 rounded transition-colors"
+                    title="Collapse sidebar"
+                  >
+                    <ChevronLeft size={18} className="text-gray-500" />
+                  </button>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
-                <div className="flex items-center gap-1">
-                  <Ruler size={12} />
-                  <span>{parcel.area ? `${parcel.area.toFixed(2)} ha` : '-'}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <TreeDeciduous size={12} />
-                  <span>{parcel.trees_count || 0} trees</span>
-                </div>
-              </div>
+              <button
+                onClick={() => {
+                  setIsCreating(!isCreating)
+                  setSelectedParcel(null) // Deselect any parcel
+                  setShowInfoPanel(false)
+                }}
+                className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${isCreating
+                  ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  : 'bg-green-600 text-white hover:bg-green-700 shadow-sm hover:shadow'
+                }`}
+              >
+                {isCreating ? (
+                  <>
+                    <X size={16} /> Cancel Creation
+                  </>
+                ) : (
+                  <>
+                    <Plus size={16} /> Add New Parcel
+                  </>
+                )}
+              </button>
             </div>
-          ))}
-        </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/50">
+              {isCreating && !newParcelGeometry && (
+                <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-center animate-pulse">
+                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <MousePointerClick size={20} className="text-blue-600" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-blue-800 mb-1">Draw on Map</h3>
+                  <p className="text-xs text-blue-600">
+                    Use the drawing tools on the map to outline your new parcel.
+                  </p>
+                </div>
+              )}
+
+              {parcels.map((parcel: any) => (
+                <div
+                  key={parcel.ID}
+                  onClick={() => zoomToParcel(parcel)}
+                  className={`group relative p-4 rounded-xl cursor-pointer transition-all duration-200 border ${selectedParcel?.ID === parcel.ID
+                    ? 'bg-white border-green-500 shadow-md ring-1 ring-green-500/20'
+                    : 'bg-white border-gray-200 hover:border-green-300 hover:shadow-sm'
+                  }`}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <h3 className={`font-semibold text-sm ${selectedParcel?.ID === parcel.ID ? 'text-green-700' : 'text-gray-700 group-hover:text-green-600'}`}>
+                      {parcel.name}
+                    </h3>
+                    {parcel.geojson && <span className="flex h-2 w-2 rounded-full bg-green-500"></span>}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
+                    <div className="flex items-center gap-1">
+                      <Ruler size={12} />
+                      <span>{parcel.area ? `${parcel.area.toFixed(2)} ha` : '-'}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <TreeDeciduous size={12} />
+                      <span>{parcel.trees_count || 0} trees</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Map */}
@@ -855,6 +931,9 @@ function Parcels() {
                         fillOpacity: hasNdviOverlay ? 0 : 0.4,
                         weight: 3
                       })}
+                      eventHandlers={{
+                        click: () => zoomToParcel(parcel)
+                      }}
                     />
 
                     {/* Render variety geometries for this parcel */}
