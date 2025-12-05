@@ -275,19 +275,21 @@ func (s *PestControlService) calculatePeacockSpotRisk(weather *models.WeatherDat
 }
 
 // getOliveFlyRecommendations returns treatment recommendations as JSON
+// Uses centralized weather thresholds for spray timing advice
 func (s *PestControlService) getOliveFlyRecommendations(riskLevel string) string {
 	recommendations := map[string]interface{}{}
 
 	switch riskLevel {
 	case "critical", "high":
 		recommendations["monitoring"] = []string{
-			"Check McPhail or Olipe traps daily",
+			"Check McPhail or Olipe traps DAILY",
 			"Monitor fruit for oviposition punctures",
 			"Record fly counts and trends",
 		}
 		recommendations["chemical"] = []string{
-			"Dimethoate or Spinosad bait spray",
-			"Attract-and-kill formulations",
+			"Spinosad or Dimethoate bait spray",
+			"Apply on dry, calm day (wind <15 km/h)",
+			"Best timing: early morning or late afternoon",
 			"Follow PHI (pre-harvest interval) strictly",
 		}
 		recommendations["biological"] = []string{
@@ -296,25 +298,31 @@ func (s *PestControlService) getOliveFlyRecommendations(riskLevel string) string
 			"Release of parasitoid wasps (if available)",
 		}
 		recommendations["cultural"] = []string{
-			"Early harvest if possible",
-			"Remove fallen and infested fruits",
-			"Maintain ground cover to reduce emergence",
+			"Early harvest if possible and oil content sufficient",
+			"Remove fallen and infested fruits daily",
+			"Maintain ground cover to reduce adult emergence",
+		}
+		recommendations["coordination"] = []string{
+			"Avoid irrigation on spray day (dilutes bait)",
+			"Check 7-day forecast for best treatment window",
+			"Wait 24h after treatment before irrigating",
 		}
 	case "moderate":
 		recommendations["monitoring"] = []string{
 			"Check traps twice weekly",
 			"Scout for early signs of infestation",
+			"Note weather patterns (warm + humid = higher risk)",
 		}
 		recommendations["preventive"] = []string{
 			"Prepare spray equipment",
-			"Source approved insecticides",
-			"Install additional traps if needed",
+			"Source approved insecticides (Spinosad preferred)",
+			"Install additional traps if coverage insufficient",
 		}
 	case "low":
 		recommendations["routine"] = []string{
-			"Weekly trap checks",
-			"Maintain trap placement",
-			"Record weather patterns",
+			"Weekly trap monitoring",
+			"Maintain trap placement and bait freshness",
+			"Record weather patterns for trend analysis",
 		}
 	}
 
@@ -323,6 +331,7 @@ func (s *PestControlService) getOliveFlyRecommendations(riskLevel string) string
 }
 
 // getPeacockSpotRecommendations returns treatment recommendations as JSON
+// Uses centralized timing thresholds (SprayDryingTime = 4-6 hours)
 func (s *PestControlService) getPeacockSpotRecommendations(riskLevel string) string {
 	recommendations := map[string]interface{}{}
 
@@ -330,35 +339,40 @@ func (s *PestControlService) getPeacockSpotRecommendations(riskLevel string) str
 	case "critical", "high":
 		recommendations["chemical"] = []string{
 			"Copper-based fungicides (Bordeaux mixture, copper hydroxide)",
-			"Apply before expected rain if possible",
+			"Apply on DRY day, 4-6 hours before any expected rain",
 			"Ensure good coverage of leaves and branches",
 		}
 		recommendations["timing"] = []string{
-			"Pre-infection treatment is most effective",
-			"Do not apply if rain is imminent (within 2-4 hours)",
-			"Repeat after heavy rain (>20mm)",
+			"IMPORTANT: Spray needs 4-6 hours to dry before rain",
+			"Best timing: apply morning of dry day before a wet period",
+			"DO NOT apply if rain expected within 4 hours",
+			"Repeat application after heavy rain (>20mm)",
 		}
 		recommendations["monitoring"] = []string{
-			"Inspect leaves for circular spots",
+			"Inspect leaves for circular spots with yellow halos",
 			"Check underside of leaves for spores",
 			"Focus on shaded, humid areas of orchard",
 		}
+		recommendations["coordination"] = []string{
+			"Do not irrigate on treatment day (washes off fungicide)",
+			"Check 7-day forecast for optimal treatment window",
+		}
 	case "moderate":
 		recommendations["preventive"] = []string{
-			"Prepare fungicide if infection period expected",
-			"Monitor weather forecast closely",
+			"Prepare fungicide for next infection-favorable period",
+			"Check 7-day forecast for upcoming wet periods",
 			"Inspect susceptible trees weekly",
 		}
 		recommendations["cultural"] = []string{
 			"Improve air circulation (pruning)",
-			"Avoid overhead irrigation",
+			"Avoid overhead irrigation - use drip instead",
 			"Remove heavily infected branches",
 		}
 	case "low":
 		recommendations["routine"] = []string{
 			"Continue routine scouting",
 			"Maintain good orchard hygiene",
-			"Plan autumn/spring treatments",
+			"Plan preventive treatments for autumn/spring wet seasons",
 		}
 	}
 
@@ -793,40 +807,118 @@ func (s *PestControlService) GetRiskForecastSummary(parcelID uint) (*RiskForecas
 }
 
 // generateRecommendedActions creates actionable recommendations based on forecast
+// Uses centralized WeatherAdvisoryService for consistent advice across all DSS
 func (s *PestControlService) generateRecommendedActions(summary *RiskForecastSummary) []string {
 	actions := []string{}
-	
-	// Check for upcoming high/critical olive fly risk
+
+	// Use centralized weather advisory service for consistent recommendations
+	advisoryService := NewWeatherAdvisoryService()
+	conditions, err := advisoryService.Get7DayConditions(summary.ParcelID)
+	if err != nil || len(conditions) == 0 {
+		actions = append(actions, "Weather forecast unavailable - check conditions before any treatments")
+		return actions
+	}
+
+	// Build condition lookup map
+	condMap := make(map[int]DayConditions)
+	for _, c := range conditions {
+		condMap[c.DaysAhead] = c
+	}
+
+	// Get best treatment window from centralized service
+	bestSprayDay, sprayReason := advisoryService.GetBestTreatmentWindow(summary.ParcelID, 5)
+
+	// --- OLIVE FLY RECOMMENDATIONS ---
+	flyActionAdded := false
 	for _, day := range summary.OliveFlyForecast {
 		if day.DaysAhead <= 3 && (day.RiskLevel == "high" || day.RiskLevel == "critical") {
+			cond := condMap[day.DaysAhead]
+
 			if day.RiskTrend == "increasing" {
-				actions = append(actions, fmt.Sprintf("Olive Fly: Risk increasing - prepare Spinosad or Dimethoate spray for day %d", day.DaysAhead))
+				if cond.IsSprayable {
+					actions = append(actions, fmt.Sprintf("🪰 Olive Fly: Risk increasing - day %d ideal for treatment (%s)", day.DaysAhead, sprayReason))
+				} else if bestSprayDay >= 0 && bestSprayDay != day.DaysAhead {
+					actions = append(actions, fmt.Sprintf("🪰 Olive Fly: High risk day %d but conditions poor - spray on day %d instead", day.DaysAhead, bestSprayDay))
+				} else {
+					actions = append(actions, "🪰 Olive Fly: High risk - monitor traps, spray when conditions allow")
+				}
 			} else {
-				actions = append(actions, fmt.Sprintf("Olive Fly: High risk on day %d - check McPhail traps and consider treatment", day.DaysAhead))
+				actions = append(actions, fmt.Sprintf("🪰 Olive Fly: Elevated risk on day %d - increase trap monitoring", day.DaysAhead))
 			}
-			break // Only add one fly action
-		}
-	}
-
-	// Check for upcoming peacock spot risk
-	for _, day := range summary.PeacockSpotForecast {
-		if day.DaysAhead <= 3 && (day.RiskLevel == "high" || day.RiskLevel == "critical") {
-			actions = append(actions, fmt.Sprintf("Peacock Spot: Infection risk on day %d - apply copper fungicide before rain", day.DaysAhead))
+			flyActionAdded = true
 			break
 		}
 	}
 
-	// Check for treatment windows (low risk, dry days)
-	for _, day := range summary.OliveFlyForecast {
-		if day.DaysAhead >= 1 && day.DaysAhead <= 3 && day.RiskLevel == "low" {
-			actions = append(actions, fmt.Sprintf("Good treatment window on day %d - favorable conditions for spray application", day.DaysAhead))
+	// --- PEACOCK SPOT RECOMMENDATIONS ---
+	// Key insight: fungicides must be applied BEFORE wet periods (4-6h drying time)
+	spotActionAdded := false
+	for i, day := range summary.PeacockSpotForecast {
+		if day.DaysAhead <= 4 && (day.RiskLevel == "high" || day.RiskLevel == "critical") {
+			cond := condMap[day.DaysAhead]
+
+			if cond.DiseaseRisk && day.DaysAhead > 0 {
+				// Disease risk from wet conditions - recommend preventive spray on preceding dry day
+				prevCond := condMap[day.DaysAhead-1]
+				if prevCond.IsSprayable {
+					actions = append(actions, fmt.Sprintf("🍃 Peacock Spot: Apply copper fungicide day %d (before rain on day %d) - needs %dh to dry", 
+						day.DaysAhead-1, day.DaysAhead, SprayDryingTime))
+				} else if i > 0 && summary.PeacockSpotForecast[i-1].DaysAhead >= 0 {
+					// Look for earlier spray window
+					for searchDay := day.DaysAhead - 2; searchDay >= 0; searchDay-- {
+						if c, ok := condMap[searchDay]; ok && c.IsSprayable {
+							actions = append(actions, fmt.Sprintf("🍃 Peacock Spot: Apply copper fungicide day %d before wet period", searchDay))
+							break
+						}
+					}
+				}
+				if len(actions) == 0 || !spotActionAdded {
+					actions = append(actions, fmt.Sprintf("🍃 Peacock Spot: Infection risk day %d - monitor leaves for symptoms", day.DaysAhead))
+				}
+			} else {
+				actions = append(actions, fmt.Sprintf("🍃 Peacock Spot: Elevated risk on day %d - inspect leaves weekly", day.DaysAhead))
+			}
+			spotActionAdded = true
 			break
 		}
 	}
 
+	// --- TREATMENT WINDOW RECOMMENDATIONS ---
+	if bestSprayDay >= 0 && !flyActionAdded && !spotActionAdded {
+		cond := condMap[bestSprayDay]
+		if cond.IsTreatWindow {
+			actions = append(actions, fmt.Sprintf("✅ Ideal treatment window day %d - dry (%.1fmm), calm (%.0f km/h), %.0f°C", 
+				bestSprayDay, cond.Precipitation, cond.WindSpeedMax, cond.TempAvg))
+		} else if cond.IsSprayable {
+			actions = append(actions, fmt.Sprintf("✅ Acceptable spray window day %d - avoid irrigation that day", bestSprayDay))
+		}
+	}
+
+	// --- WEATHER COORDINATION WARNINGS ---
+	for _, cond := range conditions[:min(3, len(conditions))] {
+		if cond.Precipitation >= PrecipExtreme {
+			actions = append(actions, fmt.Sprintf("🌧️ Heavy rain day %d (%.0fmm) - delay all treatments, skip irrigation", cond.DaysAhead, cond.Precipitation))
+		}
+		if cond.WindGustMax >= WindGale {
+			actions = append(actions, fmt.Sprintf("💨 Strong winds day %d (%.0f km/h gusts) - no spraying", cond.DaysAhead, cond.WindGustMax))
+		}
+		if cond.HasFrostRisk {
+			actions = append(actions, fmt.Sprintf("❄️ Frost risk day %d (min %.0f°C) - avoid late irrigation", cond.DaysAhead, cond.TempMin))
+		}
+	}
+
+	// --- DEFAULT MESSAGE ---
 	if len(actions) == 0 {
-		actions = append(actions, "Continue routine monitoring - no immediate action required")
+		actions = append(actions, "Continue routine monitoring - no urgent action required")
 	}
 
 	return actions
+}
+
+// min returns the minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

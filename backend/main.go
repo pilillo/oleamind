@@ -144,6 +144,11 @@ func main() {
 		// Weather Routes
 		protected.GET("/parcels/:parcel_id/weather", controllers.GetWeatherForParcel)
 		protected.POST("/weather/refresh", controllers.RefreshAllWeather)
+		// Unified Weather Advisory (centralized DSS recommendations)
+		protected.GET("/weather/advisory/:parcel_id", controllers.GetWeatherAdvisory)
+		protected.GET("/weather/conditions/:parcel_id", controllers.Get7DayConditions)
+		protected.GET("/weather/check-spray/:parcel_id", controllers.CheckSprayWindow)
+		protected.GET("/weather/check-irrigation/:parcel_id", controllers.CheckIrrigationWindow)
 
 		// Irrigation Routes
 		protected.GET("/irrigation/recommendation/:parcel_id", controllers.GetIrrigationRecommendation)

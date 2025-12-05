@@ -176,9 +176,10 @@ func (s *IrrigationService) CalculateRecommendation(parcelID uint) (*models.Irri
 		irrigationThreshold = IrrigationThresholdCritical * climateProfile.IrrigationFactor // More critical stages
 	}
 
-	// Don't irrigate if dormant, saturated, or significant rain expected
+	// Use centralized weather advisory for consistent rain thresholds
+	// PrecipModerate (5mm) is the threshold for skipping irrigation
 	recommendation.ShouldIrrigate = depletionRatio >= irrigationThreshold &&
-		recommendation.Rainfall < 5.0 &&
+		recommendation.Rainfall < PrecipModerate &&
 		!isDormant &&
 		!isSaturated
 
@@ -255,19 +256,20 @@ func (s *IrrigationService) CalculateRecommendation(parcelID uint) (*models.Irri
 		}
 	}
 
-	// Weather forecast summary - provide context-aware messaging
+	// Weather forecast summary - using centralized thresholds for consistency
+	// These thresholds match WeatherAdvisoryService: PrecipHeavy=10mm, PrecipModerate=5mm, PrecipLight=1mm
 	if isDormant {
 		recommendation.WeatherForecast = "Dormant season - irrigation not needed. Trees are resting for winter."
 	} else if isSaturated {
 		recommendation.WeatherForecast = "Soil saturated from recent rainfall - no irrigation needed."
-	} else if weather.RainNext24h > 10 {
-		recommendation.WeatherForecast = "Heavy rain expected - delay irrigation"
-	} else if weather.RainNext24h > 5 {
-		recommendation.WeatherForecast = "Moderate rain expected"
-	} else if weather.RainNext24h > 0 {
-		recommendation.WeatherForecast = "Light rain possible"
+	} else if weather.RainNext24h >= PrecipHeavy {
+		recommendation.WeatherForecast = fmt.Sprintf("Heavy rain expected (%.0fmm) - skip irrigation, delay treatments", weather.RainNext24h)
+	} else if weather.RainNext24h >= PrecipModerate {
+		recommendation.WeatherForecast = fmt.Sprintf("Moderate rain expected (%.0fmm) - irrigation not needed", weather.RainNext24h)
+	} else if weather.RainNext24h >= PrecipLight {
+		recommendation.WeatherForecast = "Light rain possible - monitor conditions"
 	} else {
-		recommendation.WeatherForecast = "No significant rain forecasted"
+		recommendation.WeatherForecast = "No significant rain forecasted - good for irrigation or treatments"
 	}
 
 	// Apply deficit irrigation strategy if configured
