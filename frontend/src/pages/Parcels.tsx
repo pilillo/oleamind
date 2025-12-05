@@ -11,6 +11,8 @@ import { apiCall } from '../config'
 import { useAuth } from '../contexts/AuthContext'
 import { SatelliteInsights } from '../components/satellite/SatelliteInsights'
 import { RiskForecastPanel } from '../components/pests/RiskForecastPanel'
+import { ClimateProfileCard } from '../components/climate/ClimateProfileCard'
+import { WeatherAdvisoryPanel } from '../components/weather/WeatherAdvisoryPanel'
 
 // Helper function to convert month number to name
 const getMonthName = (month: number): string => {
@@ -124,8 +126,10 @@ function Parcels() {
   const [satelliteLastUpdated, setSatelliteLastUpdated] = useState<number>(0)
   const [irrigationData, setIrrigationData] = useState<any>(null)
   const [pestData, setPestData] = useState<any>(null)
+  const [climateProfile, setClimateProfile] = useState<any>(null)
+  const [climateLoading, setClimateLoading] = useState(false)
   const [showInfoPanel, setShowInfoPanel] = useState(true)
-  const [activeTab, setActiveTab] = useState<'overview' | 'conditions' | 'satellite'>('conditions')
+  const [activeTab, setActiveTab] = useState<'overview' | 'conditions' | 'satellite' | 'climate'>('conditions')
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState('')
   const [editArea, setEditArea] = useState('')
@@ -222,6 +226,7 @@ function Parcels() {
     setWeatherData(null)
     setIrrigationData(null)
     setPestData(null)
+    setClimateProfile(null)
 
     // Automatically fetch NDVI data for this parcel
     processSatellite(parcel.ID)
@@ -234,6 +239,9 @@ function Parcels() {
 
     // Fetch pest risk for this parcel
     fetchPestRisk(parcel.ID)
+
+    // Fetch climate profile for this parcel
+    fetchClimateProfile(parcel.ID)
 
     if (parcel.geojson) {
       try {
@@ -265,6 +273,39 @@ function Parcels() {
       setIrrigationData(data)
     } catch (err) {
       console.error('Failed to fetch irrigation recommendation for parcel', parcelId, err)
+    }
+  }
+
+  const fetchClimateProfile = async (parcelId: number) => {
+    setClimateLoading(true)
+    try {
+      const response = await apiCall(`/climate/${parcelId}`)
+      if (response.ok) {
+        const data = await response.json()
+        setClimateProfile(data)
+      } else {
+        setClimateProfile(null)
+      }
+    } catch (err) {
+      console.error('Failed to fetch climate profile for parcel', parcelId, err)
+      setClimateProfile(null)
+    } finally {
+      setClimateLoading(false)
+    }
+  }
+
+  const refreshClimateProfile = async (parcelId: number) => {
+    setClimateLoading(true)
+    try {
+      const response = await apiCall(`/climate/${parcelId}/refresh`, { method: 'POST' })
+      if (response.ok) {
+        const data = await response.json()
+        setClimateProfile(data.profile)
+      }
+    } catch (err) {
+      console.error('Failed to refresh climate profile', err)
+    } finally {
+      setClimateLoading(false)
     }
   }
 
@@ -1258,6 +1299,7 @@ function Parcels() {
                 {[
                   { id: 'overview', icon: '📊', label: 'Overview' },
                   { id: 'conditions', icon: '🌦️', label: 'Current' },
+                  { id: 'climate', icon: '🌍', label: 'Climate' },
                   { id: 'satellite', icon: '🛰️', label: 'Satellite' },
                 ].map((tab) => (
                   <button
@@ -1325,6 +1367,24 @@ function Parcels() {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* Climate Tab Content */}
+            {!isEditing && activeTab === 'climate' && selectedParcel && (
+              <div className="space-y-6">
+                {/* Weather Advisory - Unified DSS Recommendations */}
+                <WeatherAdvisoryPanel parcelId={selectedParcel.ID} />
+
+                {/* Climate Profile Card */}
+                <ClimateProfileCard 
+                  profile={climateProfile} 
+                  loading={climateLoading}
+                  onRefresh={() => refreshClimateProfile(selectedParcel.ID)}
+                />
+
+                {/* 7-Day Pest Risk Forecast */}
+                <RiskForecastPanel parcelId={selectedParcel.ID} />
               </div>
             )}
 

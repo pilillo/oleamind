@@ -163,7 +163,45 @@
     "last_updated": "Last updated",
     "fetching": "Fetching weather data...",
     "no_data": "No weather data available",
-    "refresh": "Refresh Weather"
+    "refresh": "Refresh Weather",
+    "advisory": "Weather Advisory",
+    "bestSpray": "Best Spray Day",
+    "bestIrrigate": "Best Irrigation Day",
+    "rainExpected": "Rain Expected",
+    "noUrgent": "No urgent advisories",
+    "conditionsFavorable": "Conditions look favorable",
+    "coordinationNotes": "Coordination Notes"
+  },
+  "climate": {
+    "title": "Climate Profile",
+    "suitability": "Olive Suitability",
+    "noData": "Climate profile not available",
+    "refresh": "Refresh with historical data",
+    "avgTemp": "Avg Temp",
+    "annualRain": "Annual Rain",
+    "gdd": "GDD/year",
+    "frostDays": "Frost Days",
+    "adjustments": "DSS Adjustment Factors",
+    "dormancy": "Dormancy",
+    "dataSource": {
+      "historical_api": "5-Year Historical",
+      "weather_history": "Weather History",
+      "location_estimate": "Location Estimate",
+      "latitude_fallback": "Latitude Fallback"
+    },
+    "zones": {
+      "Csa": "Hot-Summer Mediterranean",
+      "Csb": "Warm-Summer Mediterranean",
+      "BSh": "Hot Semi-Arid",
+      "BWh": "Hot Desert",
+      "Cfb": "Oceanic"
+    },
+    "seasons": {
+      "dormant": "Dormant",
+      "early": "Early Growing",
+      "mid": "Mid Growing",
+      "late": "Late Growing"
+    }
   },
   "pests": {
     "title": "Pest Control",

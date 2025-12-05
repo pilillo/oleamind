@@ -84,16 +84,11 @@ export function SatelliteInsights({ parcelId, lastUpdated }: SatelliteInsightsPr
         return { label: 'Water stress', color: 'red', description: 'Consider irrigation' }
     }
 
-    const getMoistureStatus = (ndmi?: number): { label: string; color: string; description: string } => {
-        if (!ndmi) return { label: 'N/A', color: 'gray', description: 'Data not available' }
-        if (ndmi >= 0.4) return { label: 'High', color: 'green', description: 'Good canopy moisture' }
-        if (ndmi >= 0.2) return { label: 'Moderate', color: 'yellow', description: 'Normal range' }
-        return { label: 'Low', color: 'red', description: 'Low water content' }
-    }
+    // getMoistureStatus available for future NDMI display:
+    // const getMoistureStatus = (ndmi?: number) => ...
 
     const healthStatus = getHealthStatus(data.ndvi_mean)
     const waterStatus = getWaterStatus(data.ndwi)
-    const moistureStatus = getMoistureStatus(data.ndmi)
 
     const getColorClasses = (color: string) => {
         switch (color) {

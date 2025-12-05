@@ -163,7 +163,45 @@
     "last_updated": "Ultimo aggiornamento",
     "fetching": "Recupero dati meteo...",
     "no_data": "Nessun dato meteo disponibile",
-    "refresh": "Aggiorna Meteo"
+    "refresh": "Aggiorna Meteo",
+    "advisory": "Consulenza Meteo",
+    "bestSpray": "Giorno Ideale Trattamento",
+    "bestIrrigate": "Giorno Ideale Irrigazione",
+    "rainExpected": "Pioggia Prevista",
+    "noUrgent": "Nessun avviso urgente",
+    "conditionsFavorable": "Condizioni favorevoli",
+    "coordinationNotes": "Note di Coordinamento"
+  },
+  "climate": {
+    "title": "Profilo Climatico",
+    "suitability": "Idoneità Olivicola",
+    "noData": "Profilo climatico non disponibile",
+    "refresh": "Aggiorna con dati storici",
+    "avgTemp": "Temp Media",
+    "annualRain": "Pioggia Annua",
+    "gdd": "GDD/anno",
+    "frostDays": "Giorni Gelo",
+    "adjustments": "Fattori di Regolazione DSS",
+    "dormancy": "Dormienza",
+    "dataSource": {
+      "historical_api": "Storico 5 Anni",
+      "weather_history": "Storico Meteo",
+      "location_estimate": "Stima Posizione",
+      "latitude_fallback": "Fallback Latitudine"
+    },
+    "zones": {
+      "Csa": "Mediterraneo Caldo",
+      "Csb": "Mediterraneo Temperato",
+      "BSh": "Semi-Arido Caldo",
+      "BWh": "Desertico Caldo",
+      "Cfb": "Oceanico"
+    },
+    "seasons": {
+      "dormant": "Riposo",
+      "early": "Inizio Stagione",
+      "mid": "Piena Stagione",
+      "late": "Fine Stagione"
+    }
   },
   "pests": {
     "title": "Controllo Fitosanitario",

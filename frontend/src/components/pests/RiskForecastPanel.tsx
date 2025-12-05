@@ -7,7 +7,6 @@ import {
     CheckCircle, 
     RefreshCw, 
     Calendar,
-    TrendingUp,
     Loader2,
     ChevronDown,
     ChevronUp

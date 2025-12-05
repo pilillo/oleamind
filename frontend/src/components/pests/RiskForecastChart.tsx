@@ -18,7 +18,7 @@ interface RiskForecastChartProps {
     pestType: 'olive_fly' | 'peacock_spot'
 }
 
-export function RiskForecastChart({ title, icon, forecast, pestType }: RiskForecastChartProps) {
+export function RiskForecastChart({ title, icon, forecast, pestType: _pestType }: RiskForecastChartProps) {
     const { t } = useTranslation()
 
     const maxScore = 100
