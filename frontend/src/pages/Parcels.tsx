@@ -6,7 +6,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet-draw/dist/leaflet.draw.css'
 import 'leaflet-draw' // Ensure L.Draw is attached to L
-import { TreeDeciduous, MapPin, Ruler, Trash2, Edit2, Save, X, Plus, Satellite, Cloud, MousePointerClick, Trees, Droplets, Wind, Thermometer } from 'lucide-react'
+import { TreeDeciduous, MapPin, Ruler, Trash2, Edit2, Save, X, Plus, Satellite, Cloud, MousePointerClick, Trees, Droplets, Wind, Thermometer, ChevronLeft, ChevronRight, GripVertical } from 'lucide-react'
 import { apiCall } from '../config'
 import { useAuth } from '../contexts/AuthContext'
 import { SatelliteInsights } from '../components/satellite/SatelliteInsights'
@@ -131,6 +131,12 @@ function Parcels() {
   const [climateLoading, setClimateLoading] = useState(false)
   const [showInfoPanel, setShowInfoPanel] = useState(true)
   const [activeTab, setActiveTab] = useState<'overview' | 'operations' | 'monitoring'>('operations')
+  
+  // Right sidebar state
+  const [sidebarWidth, setSidebarWidth] = useState(400)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [isResizing, setIsResizing] = useState(false)
+  const sidebarRef = useRef<HTMLDivElement>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState('')
   const [editArea, setEditArea] = useState('')
@@ -667,6 +673,43 @@ function Parcels() {
     return 0
   }
 
+  // Resize handlers for right sidebar
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsResizing(true)
+  }, [])
+
+  useEffect(() => {
+    if (!isResizing) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = window.innerWidth - e.clientX
+      // Clamp between 320px and 600px
+      setSidebarWidth(Math.min(600, Math.max(320, newWidth)))
+    }
+
+    const handleMouseUp = () => {
+      setIsResizing(false)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    // Set cursor globally during resize
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isResizing])
+
+  const toggleSidebar = useCallback(() => {
+    setIsSidebarCollapsed(prev => !prev)
+  }, [])
+
   return (
     <div className="h-full flex">
       {/* Sidebar */}
@@ -1078,8 +1121,42 @@ function Parcels() {
           </div>
         )}
 
-        {selectedParcel && showInfoPanel && (
-          <div className="absolute bottom-4 right-4 bg-white/95 backdrop-blur-sm p-5 rounded-xl shadow-2xl w-96 z-[1000] max-h-[calc(100vh-120px)] overflow-y-auto border border-gray-100 transition-all duration-300">
+        {/* Toggle button to reopen sidebar if collapsed and parcel is selected */}
+        {selectedParcel && isSidebarCollapsed && (
+          <button
+            onClick={toggleSidebar}
+            className="absolute top-1/2 right-0 -translate-y-1/2 bg-white border border-gray-200 border-r-0 p-2 rounded-l-lg shadow-lg hover:bg-gray-50 z-[1000] transition-all"
+            title="Expand panel"
+          >
+            <ChevronLeft size={20} className="text-gray-600" />
+          </button>
+        )}
+      </div>
+
+      {/* Right Sidebar - Info Panel */}
+      {selectedParcel && !isSidebarCollapsed && (
+        <div 
+          ref={sidebarRef}
+          className="h-full bg-white border-l border-gray-200 flex flex-col relative transition-all duration-300"
+          style={{ width: sidebarWidth, minWidth: 320, maxWidth: 600 }}
+        >
+          {/* Resize Handle */}
+          <div
+            onMouseDown={handleResizeStart}
+            className={`absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-400 transition-colors z-10 ${isResizing ? 'bg-indigo-500' : 'bg-transparent hover:bg-indigo-300'}`}
+          />
+          
+          {/* Collapse Toggle Button */}
+          <button
+            onClick={toggleSidebar}
+            className="absolute -left-3 top-4 bg-white border border-gray-200 p-1 rounded-full shadow-md hover:bg-gray-50 z-20 transition-all"
+            title="Collapse panel"
+          >
+            <ChevronRight size={16} className="text-gray-600" />
+          </button>
+
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto p-5">
             <div className="flex justify-between items-start mb-4">
               {isEditing ? (
                 <div className="flex-grow mr-2 space-y-4">
@@ -1527,21 +1604,8 @@ function Parcels() {
             )}
 
           </div>
-        )}
-
-        {/* Toggle button to reopen panel if closed */}
-        {selectedParcel && !showInfoPanel && (
-          <button
-            onClick={() => setShowInfoPanel(true)}
-            className="absolute bottom-4 right-4 bg-white p-3 rounded-lg shadow-lg hover:bg-gray-50 z-[1000]"
-            title="Show parcel info"
-          >
-            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
