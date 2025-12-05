@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { TrendingUp, Droplets, BarChart3, AlertTriangle, Info } from 'lucide-react'
+import { TrendingUp, Droplets, BarChart3, AlertTriangle } from 'lucide-react'
 import { apiCall } from '../../config'
 
 interface SatelliteData {
@@ -198,20 +198,7 @@ export function SatelliteInsights({ parcelId, lastUpdated }: SatelliteInsightsPr
                     </div>
                 </div>
 
-                {/* Recommendation Banner */}
-                {(waterStatus.color === 'red' || waterStatus.color === 'yellow') && data.ndwi !== undefined && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-3">
-                        <Info size={18} className="text-blue-600 mt-0.5 flex-shrink-0" />
-                        <div className="text-sm text-blue-800">
-                            <p className="font-medium">💡 Recommendation</p>
-                            <p className="text-xs mt-1">
-                                {waterStatus.color === 'red'
-                                    ? 'Water stress detected. Consider irrigating within 1-3 days if no rain is forecast.'
-                                    : 'Moderate water stress. Monitor closely and plan irrigation if conditions worsen.'}
-                            </p>
-                        </div>
-                    </div>
-                )}
+                {/* Note: Recommendations removed - see Operations tab for unified advice */}
 
                 {ageDays > 7 && (
                     <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex items-start gap-3">
