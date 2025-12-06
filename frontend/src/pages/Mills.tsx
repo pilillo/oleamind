@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Building2, Truck, Droplets, FlaskConical, Wine, DollarSign, Plus } from 'lucide-react'
 import { MillForm } from '../components/mills/MillForm'
 import { MillList } from '../components/mills/MillList'
@@ -15,6 +16,7 @@ import { SalesList } from '../components/mills/SalesList'
 import { type Mill, type OliveDelivery, type OilBatch } from '../services/millService'
 
 export default function Mills() {
+    const { t } = useTranslation()
     const [activeTab, setActiveTab] = useState<'mills' | 'deliveries' | 'batches' | 'quality' | 'bottling' | 'sales'>('mills')
     const [showMillForm, setShowMillForm] = useState(false)
     const [editingMill, setEditingMill] = useState<Mill | undefined>(undefined)
@@ -28,12 +30,12 @@ export default function Mills() {
     const [refreshTrigger, setRefreshTrigger] = useState(0)
 
     const tabs = [
-        { id: 'mills', label: 'Mills', icon: Building2 },
-        { id: 'deliveries', label: 'Deliveries', icon: Truck },
-        { id: 'batches', label: 'Oil Batches', icon: Droplets },
-        { id: 'quality', label: 'Quality', icon: FlaskConical },
-        { id: 'bottling', label: 'Bottling', icon: Wine },
-        { id: 'sales', label: 'Sales', icon: DollarSign },
+        { id: 'mills', label: t('mills.tabs.mills'), icon: Building2 },
+        { id: 'deliveries', label: t('mills.tabs.deliveries'), icon: Truck },
+        { id: 'batches', label: t('mills.tabs.batches'), icon: Droplets },
+        { id: 'quality', label: t('mills.tabs.quality'), icon: FlaskConical },
+        { id: 'bottling', label: t('mills.tabs.bottling'), icon: Wine },
+        { id: 'sales', label: t('mills.tabs.sales'), icon: DollarSign },
     ]
 
     const handleSuccess = () => {
@@ -95,8 +97,8 @@ export default function Mills() {
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-800">Mills & Processing</h2>
-                    <p className="text-gray-500">Manage olive processing from delivery to bottled oil</p>
+                    <h2 className="text-2xl font-bold text-gray-800">{t('mills.title')}</h2>
+                    <p className="text-gray-500">{t('mills.subtitle')}</p>
                 </div>
                 <button
                     onClick={activeTab === 'mills' ? handleAddMill : activeTab === 'deliveries' ? handleAddDelivery : activeTab === 'batches' ? handleAddBatch : activeTab === 'quality' ? handleAddQuality : activeTab === 'bottling' ? handleAddBottling : activeTab === 'sales' ? handleAddSale : undefined}
@@ -104,12 +106,12 @@ export default function Mills() {
                     disabled={activeTab !== 'mills' && activeTab !== 'deliveries' && activeTab !== 'batches' && activeTab !== 'quality' && activeTab !== 'bottling' && activeTab !== 'sales'}
                 >
                     <Plus size={20} />
-                    {activeTab === 'mills' && 'Add Mill'}
-                    {activeTab === 'deliveries' && 'Record Delivery'}
-                    {activeTab === 'batches' && 'Create Batch'}
-                    {activeTab === 'quality' && 'Add Analysis'}
-                    {activeTab === 'bottling' && 'New Bottling'}
-                    {activeTab === 'sales' && 'Record Sale'}
+                    {activeTab === 'mills' && t('mills.add_mill')}
+                    {activeTab === 'deliveries' && t('mills.record_delivery')}
+                    {activeTab === 'batches' && t('mills.create_batch')}
+                    {activeTab === 'quality' && t('mills.add_analysis')}
+                    {activeTab === 'bottling' && t('mills.new_bottling')}
+                    {activeTab === 'sales' && t('mills.record_sale')}
                 </button>
             </div>
 

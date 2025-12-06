@@ -492,6 +492,13 @@
   },
   "mills": {
     "title": "Mills & Processing",
+    "subtitle": "Manage olive processing from delivery to bottled oil",
+    "add_mill": "Add Mill",
+    "record_delivery": "Record Delivery",
+    "create_batch": "Create Batch",
+    "add_analysis": "Add Analysis",
+    "new_bottling": "New Bottling",
+    "record_sale": "Record Sale",
     "tabs": {
       "mills": "Mills",
       "deliveries": "Deliveries",
@@ -622,7 +629,25 @@
       "select_mill_error": "Please select a mill",
       "enter_batch_number": "Please enter a batch number",
       "select_production_date": "Please select a production date",
-      "enter_valid_quantity": "Please enter a valid quantity (greater than 0)"
+      "enter_valid_quantity": "Please enter a valid quantity (greater than 0)",
+      "error_loading": "Error loading batches",
+      "try_again": "Try Again",
+      "no_batches": "No Oil Batches Produced",
+      "no_batches_desc": "Create your first oil batch from processed deliveries.",
+      "oil_batches": "Oil Batches",
+      "batches": "batches",
+      "batch_id": "Batch",
+      "quantity": "Quantity",
+      "type": "Type",
+      "status": "Status",
+      "status_stored": "Stored",
+      "status_bottled": "Bottled",
+      "status_sold": "Sold",
+      "status_unknown": "Unknown",
+      "yield": "Yield",
+      "location_label": "Location:",
+      "location_not_assigned": "Not assigned",
+      "cultivar_label": "Cultivar:"
     },
     "quality": {
       "title": "Quality Analysis",
@@ -651,7 +676,18 @@
       "notes": "Notes",
       "notes_placeholder": "Additional notes...",
       "cancel": "Cancel",
-      "save_analysis": "Save Analysis"
+      "save_analysis": "Save Analysis",
+      "error_loading": "Error loading analyses",
+      "no_analyses": "No Quality Analyses",
+      "no_analyses_desc": "Record quality analysis results for your oil batches.",
+      "quality_reports": "Quality Reports",
+      "reports": "reports",
+      "analysis": "ANALYSIS",
+      "certified": "Certified",
+      "acidity": "Acidity",
+      "peroxides_label": "Peroxides",
+      "polyphenols": "Polyphenols",
+      "lab_label": "Lab:"
     },
     "bottling": {
       "title": "Bottling",
@@ -680,7 +716,20 @@
       "notes": "Notes",
       "notes_placeholder": "Additional notes...",
       "cancel": "Cancel",
-      "save_bottling": "Save Bottling"
+      "save_bottling": "Save Bottling",
+      "error_loading": "Error loading bottlings",
+      "no_bottlings": "No Bottling Records",
+      "no_bottlings_desc": "Record your first bottling operation from an oil batch.",
+      "bottling_history": "Bottling History",
+      "records": "records",
+      "lot": "Lot:",
+      "batch_id": "Batch",
+      "total_volume": "Total Volume",
+      "format": "Format",
+      "bottles": "Bottles",
+      "label": "Label",
+      "destination_label": "Destination:",
+      "expires_label": "Expires:"
     },
     "sales": {
       "title": "Sales",
@@ -708,7 +757,15 @@
       "notes": "Notes",
       "notes_placeholder": "Additional notes...",
       "cancel": "Cancel",
-      "record_sale": "Record Sale"
+      "record_sale": "Record Sale",
+      "error_loading": "Error loading sales",
+      "no_sales": "No Sales Recorded",
+      "no_sales_desc": "Record your first oil sale to track revenue.",
+      "sales_history": "Sales History",
+      "records": "records",
+      "sale_id": "Sale",
+      "quantity": "Quantity",
+      "payment": "Payment"
     }
   },
   "users": {

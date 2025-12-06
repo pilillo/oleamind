@@ -41,7 +41,7 @@ export function CostEfficiencyDashboard() {
             setLoading(true)
             const response = await apiCall(`/analytics/cost-efficiency?start_date=${dateRange.start}&end_date=${dateRange.end}`)
             const result: CostEfficiencyData[] = await response.json()
-            setData(result)
+            setData(Array.isArray(result) ? result : [])
             setError(null)
         } catch (err) {
             console.error('Failed to fetch cost efficiency:', err)

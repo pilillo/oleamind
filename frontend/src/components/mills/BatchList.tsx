@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Droplets, Edit, Calendar, Scale, Tag, MapPin } from 'lucide-react'
 import { millService, type OilBatch } from '../../services/millService'
 
@@ -8,6 +9,7 @@ interface BatchListProps {
 }
 
 export function BatchList({ refreshTrigger, onEdit }: BatchListProps) {
+    const { t } = useTranslation()
     const [batches, setBatches] = useState<OilBatch[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -41,13 +43,13 @@ export function BatchList({ refreshTrigger, onEdit }: BatchListProps) {
     if (error) {
         return (
             <div className="text-center py-12">
-                <div className="text-red-600 mb-2">Error loading batches</div>
+                <div className="text-red-600 mb-2">{t('mills.batch.error_loading')}</div>
                 <div className="text-gray-500 text-sm">{error}</div>
                 <button
                     onClick={fetchBatches}
                     className="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                 >
-                    Try Again
+                    {t('mills.batch.try_again')}
                 </button>
             </div>
         )
@@ -57,8 +59,8 @@ export function BatchList({ refreshTrigger, onEdit }: BatchListProps) {
         return (
             <div className="text-center py-12">
                 <Droplets size={48} className="mx-auto text-gray-300 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Oil Batches Produced</h3>
-                <p className="text-gray-500">Create your first oil batch from processed deliveries.</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">{t('mills.batch.no_batches')}</h3>
+                <p className="text-gray-500">{t('mills.batch.no_batches_desc')}</p>
             </div>
         )
     }
@@ -66,8 +68,8 @@ export function BatchList({ refreshTrigger, onEdit }: BatchListProps) {
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-800">Oil Batches</h3>
-                <span className="text-sm text-gray-500">{batches.length} batches</span>
+                <h3 className="text-lg font-semibold text-gray-800">{t('mills.batch.oil_batches')}</h3>
+                <span className="text-sm text-gray-500">{batches.length} {t('mills.batch.batches')}</span>
             </div>
 
             <div className="grid gap-4">
@@ -83,7 +85,7 @@ export function BatchList({ refreshTrigger, onEdit }: BatchListProps) {
                                 </div>
                                 <div>
                                     <h4 className="font-semibold text-gray-900">
-                                        Batch #{batch.batch_number}
+                                        {t('mills.batch.batch_id')} #{batch.batch_number}
                                     </h4>
                                     <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
                                         <Calendar size={14} />
@@ -106,29 +108,32 @@ export function BatchList({ refreshTrigger, onEdit }: BatchListProps) {
 
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                             <div className="bg-gray-50 p-3 rounded-lg">
-                                <div className="text-xs text-gray-500 mb-1">Quantity</div>
+                                <div className="text-xs text-gray-500 mb-1">{t('mills.batch.quantity')}</div>
                                 <div className="font-semibold text-gray-900 flex items-center gap-1">
                                     <Scale size={14} className="text-gray-400" />
                                     {batch.quantity_liters} L
                                 </div>
                             </div>
                             <div className="bg-gray-50 p-3 rounded-lg">
-                                <div className="text-xs text-gray-500 mb-1">Type</div>
+                                <div className="text-xs text-gray-500 mb-1">{t('mills.batch.type')}</div>
                                 <div className="font-semibold text-gray-900 capitalize">
                                     {batch.oil_type?.replace('_', ' ') || 'N/A'}
                                 </div>
                             </div>
                             <div className="bg-gray-50 p-3 rounded-lg">
-                                <div className="text-xs text-gray-500 mb-1">Status</div>
+                                <div className="text-xs text-gray-500 mb-1">{t('mills.batch.status')}</div>
                                 <div className={`font-semibold capitalize ${batch.status === 'stored' ? 'text-blue-600' :
                                     batch.status === 'bottled' ? 'text-purple-600' :
                                         batch.status === 'sold' ? 'text-green-600' : 'text-gray-900'
                                     }`}>
-                                    {batch.status || 'Unknown'}
+                                    {batch.status === 'stored' ? t('mills.batch.status_stored') :
+                                     batch.status === 'bottled' ? t('mills.batch.status_bottled') :
+                                     batch.status === 'sold' ? t('mills.batch.status_sold') :
+                                     t('mills.batch.status_unknown')}
                                 </div>
                             </div>
                             <div className="bg-gray-50 p-3 rounded-lg">
-                                <div className="text-xs text-gray-500 mb-1">Yield</div>
+                                <div className="text-xs text-gray-500 mb-1">{t('mills.batch.yield')}</div>
                                 <div className="font-semibold text-gray-900">
                                     {batch.yield_percentage ? `${batch.yield_percentage.toFixed(1)}%` : 'N/A'}
                                 </div>
@@ -138,13 +143,13 @@ export function BatchList({ refreshTrigger, onEdit }: BatchListProps) {
                         <div className="flex items-center gap-6 text-sm text-gray-600">
                             <div className="flex items-center gap-2">
                                 <MapPin size={14} />
-                                <span className="font-medium">Location:</span>
-                                {batch.storage_location || 'Not assigned'}
+                                <span className="font-medium">{t('mills.batch.location_label')}</span>
+                                {batch.storage_location || t('mills.batch.location_not_assigned')}
                             </div>
                             {batch.monocultivar && (
                                 <div className="flex items-center gap-2">
                                     <Tag size={14} />
-                                    <span className="font-medium">Cultivar:</span>
+                                    <span className="font-medium">{t('mills.batch.cultivar_label')}</span>
                                     {batch.cultivar}
                                 </div>
                             )}

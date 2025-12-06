@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Wine, Calendar, Package, Tag } from 'lucide-react'
 import { millService, type OilBottling } from '../../services/millService'
 
@@ -7,6 +8,7 @@ interface BottlingListProps {
 }
 
 export function BottlingList({ refreshTrigger }: BottlingListProps) {
+    const { t } = useTranslation()
     const [bottlings, setBottlings] = useState<OilBottling[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -40,7 +42,7 @@ export function BottlingList({ refreshTrigger }: BottlingListProps) {
     if (error) {
         return (
             <div className="text-center py-12">
-                <div className="text-red-600 mb-2">Error loading bottlings</div>
+                <div className="text-red-600 mb-2">{t('mills.bottling.error_loading')}</div>
                 <div className="text-gray-500 text-sm">{error}</div>
             </div>
         )
@@ -50,8 +52,8 @@ export function BottlingList({ refreshTrigger }: BottlingListProps) {
         return (
             <div className="text-center py-12">
                 <Wine size={48} className="mx-auto text-gray-300 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Bottling Records</h3>
-                <p className="text-gray-500">Record your first bottling operation from an oil batch.</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">{t('mills.bottling.no_bottlings')}</h3>
+                <p className="text-gray-500">{t('mills.bottling.no_bottlings_desc')}</p>
             </div>
         )
     }
@@ -59,8 +61,8 @@ export function BottlingList({ refreshTrigger }: BottlingListProps) {
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-800">Bottling History</h3>
-                <span className="text-sm text-gray-500">{bottlings.length} records</span>
+                <h3 className="text-lg font-semibold text-gray-800">{t('mills.bottling.bottling_history')}</h3>
+                <span className="text-sm text-gray-500">{bottlings.length} {t('mills.bottling.records')}</span>
             </div>
 
             <div className="grid gap-4">
@@ -76,13 +78,13 @@ export function BottlingList({ refreshTrigger }: BottlingListProps) {
                                 </div>
                                 <div>
                                     <h4 className="font-semibold text-gray-900">
-                                        Lot: {bottling.lot_number || `#${bottling.ID}`}
+                                        {t('mills.bottling.lot')} {bottling.lot_number || `#${bottling.ID}`}
                                     </h4>
                                     <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
                                         <Calendar size={14} />
                                         {new Date(bottling.bottling_date).toLocaleDateString()}
                                         <span className="text-gray-300">|</span>
-                                        <span>Batch #{bottling.oil_batch?.batch_number || bottling.oil_batch_id}</span>
+                                        <span>{t('mills.batch.batch_id')} #{bottling.oil_batch?.batch_number || bottling.oil_batch_id}</span>
                                     </div>
                                 </div>
                             </div>
@@ -90,28 +92,28 @@ export function BottlingList({ refreshTrigger }: BottlingListProps) {
 
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                             <div className="bg-gray-50 p-3 rounded-lg">
-                                <div className="text-xs text-gray-500 mb-1">Total Volume</div>
+                                <div className="text-xs text-gray-500 mb-1">{t('mills.bottling.total_volume')}</div>
                                 <div className="font-semibold text-gray-900">
                                     {bottling.quantity_liters} L
                                 </div>
                             </div>
                             <div className="bg-gray-50 p-3 rounded-lg">
-                                <div className="text-xs text-gray-500 mb-1">Format</div>
+                                <div className="text-xs text-gray-500 mb-1">{t('mills.bottling.format')}</div>
                                 <div className="font-semibold text-gray-900">
                                     {bottling.bottle_size} L
                                 </div>
                             </div>
                             <div className="bg-gray-50 p-3 rounded-lg">
-                                <div className="text-xs text-gray-500 mb-1">Bottles</div>
+                                <div className="text-xs text-gray-500 mb-1">{t('mills.bottling.bottles')}</div>
                                 <div className="font-semibold text-gray-900 flex items-center gap-1">
                                     <Package size={14} className="text-gray-400" />
                                     {bottling.bottles_count}
                                 </div>
                             </div>
                             <div className="bg-gray-50 p-3 rounded-lg">
-                                <div className="text-xs text-gray-500 mb-1">Label</div>
+                                <div className="text-xs text-gray-500 mb-1">{t('mills.bottling.label')}</div>
                                 <div className="font-semibold text-gray-900 capitalize">
-                                    {bottling.label_type || 'Standard'}
+                                    {bottling.label_type || t('mills.bottling.label_standard')}
                                 </div>
                             </div>
                         </div>
@@ -120,14 +122,14 @@ export function BottlingList({ refreshTrigger }: BottlingListProps) {
                             {bottling.destination && (
                                 <div className="flex items-center gap-2">
                                     <Tag size={14} />
-                                    <span className="font-medium">Destination:</span>
+                                    <span className="font-medium">{t('mills.bottling.destination_label')}</span>
                                     <span className="capitalize">{bottling.destination}</span>
                                 </div>
                             )}
                             {bottling.expiry_date && (
                                 <div className="flex items-center gap-2">
                                     <Calendar size={14} />
-                                    <span className="font-medium">Expires:</span>
+                                    <span className="font-medium">{t('mills.bottling.expires_label')}</span>
                                     {new Date(bottling.expiry_date).toLocaleDateString()}
                                 </div>
                             )}

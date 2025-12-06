@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { FlaskConical, FileText, Activity, AlertCircle, CheckCircle } from 'lucide-react'
 import { millService, type OilQualityAnalysis } from '../../services/millService'
 
@@ -7,6 +8,7 @@ interface QualityListProps {
 }
 
 export function QualityList({ refreshTrigger }: QualityListProps) {
+    const { t } = useTranslation()
     const [analyses, setAnalyses] = useState<OilQualityAnalysis[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -53,7 +55,7 @@ export function QualityList({ refreshTrigger }: QualityListProps) {
     if (error) {
         return (
             <div className="text-center py-12">
-                <div className="text-red-600 mb-2">Error loading analyses</div>
+                <div className="text-red-600 mb-2">{t('mills.quality.error_loading')}</div>
                 <div className="text-gray-500 text-sm">{error}</div>
             </div>
         )
@@ -63,8 +65,8 @@ export function QualityList({ refreshTrigger }: QualityListProps) {
         return (
             <div className="text-center py-12">
                 <FlaskConical size={48} className="mx-auto text-gray-300 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Quality Analyses</h3>
-                <p className="text-gray-500">Record quality analysis results for your oil batches.</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">{t('mills.quality.no_analyses')}</h3>
+                <p className="text-gray-500">{t('mills.quality.no_analyses_desc')}</p>
             </div>
         )
     }
@@ -72,8 +74,8 @@ export function QualityList({ refreshTrigger }: QualityListProps) {
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-800">Quality Reports</h3>
-                <span className="text-sm text-gray-500">{analyses.length} reports</span>
+                <h3 className="text-lg font-semibold text-gray-800">{t('mills.quality.quality_reports')}</h3>
+                <span className="text-sm text-gray-500">{analyses.length} {t('mills.quality.reports')}</span>
             </div>
 
             <div className="grid gap-4">
@@ -92,13 +94,13 @@ export function QualityList({ refreshTrigger }: QualityListProps) {
                                 </div>
                                 <div>
                                     <h4 className="font-semibold text-gray-900">
-                                        {analysis.classification?.replace('_', ' ').toUpperCase() || 'ANALYSIS'}
+                                        {analysis.classification?.replace('_', ' ').toUpperCase() || t('mills.quality.analysis')}
                                     </h4>
                                     <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
                                         <FileText size={14} />
                                         {new Date(analysis.analysis_date).toLocaleDateString()}
                                         <span className="text-gray-300">|</span>
-                                        <span>Batch #{analysis.oil_batch?.batch_number || analysis.oil_batch_id}</span>
+                                        <span>{t('mills.batch.batch_id')} #{analysis.oil_batch?.batch_number || analysis.oil_batch_id}</span>
                                     </div>
                                 </div>
                             </div>
@@ -106,14 +108,14 @@ export function QualityList({ refreshTrigger }: QualityListProps) {
                             {analysis.certified && (
                                 <div className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded-full text-xs font-medium">
                                     <CheckCircle size={12} />
-                                    Certified
+                                    {t('mills.quality.certified')}
                                 </div>
                             )}
                         </div>
 
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                             <div className="bg-gray-50 p-3 rounded-lg">
-                                <div className="text-xs text-gray-500 mb-1">Acidity</div>
+                                <div className="text-xs text-gray-500 mb-1">{t('mills.quality.acidity')}</div>
                                 <div className={`font-semibold flex items-center gap-1 ${(analysis.free_acidity || 0) <= 0.8 ? 'text-green-600' : 'text-red-600'
                                     }`}>
                                     <Activity size={14} />
@@ -121,19 +123,19 @@ export function QualityList({ refreshTrigger }: QualityListProps) {
                                 </div>
                             </div>
                             <div className="bg-gray-50 p-3 rounded-lg">
-                                <div className="text-xs text-gray-500 mb-1">Peroxides</div>
+                                <div className="text-xs text-gray-500 mb-1">{t('mills.quality.peroxides_label')}</div>
                                 <div className="font-semibold text-gray-900">
                                     {analysis.peroxide_value} meq
                                 </div>
                             </div>
                             <div className="bg-gray-50 p-3 rounded-lg">
-                                <div className="text-xs text-gray-500 mb-1">Polyphenols</div>
+                                <div className="text-xs text-gray-500 mb-1">{t('mills.quality.polyphenols')}</div>
                                 <div className="font-semibold text-gray-900">
                                     {analysis.polyphenols || '-'} mg/kg
                                 </div>
                             </div>
                             <div className="bg-gray-50 p-3 rounded-lg">
-                                <div className="text-xs text-gray-500 mb-1">Defects</div>
+                                <div className="text-xs text-gray-500 mb-1">{t('mills.quality.defects')}</div>
                                 <div className="font-semibold text-gray-900">
                                     {analysis.defects_median || 0}
                                 </div>
@@ -144,7 +146,7 @@ export function QualityList({ refreshTrigger }: QualityListProps) {
                             <div className="flex items-start gap-2 text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
                                 <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
                                 <div>
-                                    {analysis.laboratory && <span className="font-medium text-gray-700 block mb-1">Lab: {analysis.laboratory}</span>}
+                                    {analysis.laboratory && <span className="font-medium text-gray-700 block mb-1">{t('mills.quality.lab_label')} {analysis.laboratory}</span>}
                                     {analysis.notes}
                                 </div>
                             </div>

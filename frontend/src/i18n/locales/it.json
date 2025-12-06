@@ -492,6 +492,13 @@
   },
   "mills": {
     "title": "Frantoi e Lavorazione",
+    "subtitle": "Gestisci la lavorazione delle olive dalla consegna all'olio imbottigliato",
+    "add_mill": "Aggiungi Frantoio",
+    "record_delivery": "Registra Conferimento",
+    "create_batch": "Crea Lotto",
+    "add_analysis": "Aggiungi Analisi",
+    "new_bottling": "Nuovo Imbottigliamento",
+    "record_sale": "Registra Vendita",
     "tabs": {
       "mills": "Frantoi",
       "deliveries": "Conferimenti",
@@ -622,7 +629,25 @@
       "select_mill_error": "Seleziona un frantoio",
       "enter_batch_number": "Inserisci un numero di lotto",
       "select_production_date": "Seleziona una data di produzione",
-      "enter_valid_quantity": "Inserisci una quantità valida (maggiore di 0)"
+      "enter_valid_quantity": "Inserisci una quantità valida (maggiore di 0)",
+      "error_loading": "Errore nel caricamento dei lotti",
+      "try_again": "Riprova",
+      "no_batches": "Nessun Lotto di Olio Prodotto",
+      "no_batches_desc": "Crea il tuo primo lotto di olio dai conferimenti lavorati.",
+      "oil_batches": "Lotti Olio",
+      "batches": "lotti",
+      "batch_id": "Lotto",
+      "quantity": "Quantità",
+      "type": "Tipo",
+      "status": "Stato",
+      "status_stored": "Stoccato",
+      "status_bottled": "Imbottigliato",
+      "status_sold": "Venduto",
+      "status_unknown": "Sconosciuto",
+      "yield": "Resa",
+      "location_label": "Posizione:",
+      "location_not_assigned": "Non assegnato",
+      "cultivar_label": "Cultivar:"
     },
     "quality": {
       "title": "Analisi Qualità",
@@ -651,7 +676,18 @@
       "notes": "Note",
       "notes_placeholder": "Note aggiuntive...",
       "cancel": "Annulla",
-      "save_analysis": "Salva Analisi"
+      "save_analysis": "Salva Analisi",
+      "error_loading": "Errore nel caricamento delle analisi",
+      "no_analyses": "Nessuna Analisi Qualità",
+      "no_analyses_desc": "Registra i risultati dell'analisi qualità per i tuoi lotti di olio.",
+      "quality_reports": "Rapporti Qualità",
+      "reports": "rapporti",
+      "analysis": "ANALISI",
+      "certified": "Certificato",
+      "acidity": "Acidità",
+      "peroxides_label": "Perossidi",
+      "polyphenols": "Polifenoli",
+      "lab_label": "Lab:"
     },
     "bottling": {
       "title": "Imbottigliamento",
@@ -680,7 +716,20 @@
       "notes": "Note",
       "notes_placeholder": "Note aggiuntive...",
       "cancel": "Annulla",
-      "save_bottling": "Salva Imbottigliamento"
+      "save_bottling": "Salva Imbottigliamento",
+      "error_loading": "Errore nel caricamento degli imbottigliamenti",
+      "no_bottlings": "Nessun Registro di Imbottigliamento",
+      "no_bottlings_desc": "Registra la tua prima operazione di imbottigliamento da un lotto di olio.",
+      "bottling_history": "Storico Imbottigliamenti",
+      "records": "registrazioni",
+      "lot": "Lotto:",
+      "batch_id": "Lotto",
+      "total_volume": "Volume Totale",
+      "format": "Formato",
+      "bottles": "Bottiglie",
+      "label": "Etichetta",
+      "destination_label": "Destinazione:",
+      "expires_label": "Scadenza:"
     },
     "sales": {
       "title": "Vendite",
@@ -708,7 +757,15 @@
       "notes": "Note",
       "notes_placeholder": "Note aggiuntive...",
       "cancel": "Annulla",
-      "record_sale": "Registra Vendita"
+      "record_sale": "Registra Vendita",
+      "error_loading": "Errore nel caricamento delle vendite",
+      "no_sales": "Nessuna Vendita Registrata",
+      "no_sales_desc": "Registra la tua prima vendita di olio per tracciare i ricavi.",
+      "sales_history": "Storico Vendite",
+      "records": "registrazioni",
+      "sale_id": "Vendita",
+      "quantity": "Quantità",
+      "payment": "Pagamento"
     }
   },
   "users": {

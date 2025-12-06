@@ -36,10 +36,19 @@ function Sidebar() {
     { path: '/users', label: t('nav.users'), icon: UsersIcon, roles: ['owner'] },
   ]
 
-  const toggleLanguage = () => {
-    const newLang = i18n.language === 'en' ? 'it' : 'en'
-    i18n.changeLanguage(newLang)
-    localStorage.setItem('language', newLang)
+  const changeLanguage = (lang: string) => {
+    i18n.changeLanguage(lang)
+    localStorage.setItem('language', lang)
+  }
+
+  const getLanguageLabel = (lang: string) => {
+    const labels: Record<string, string> = {
+      'en': '🇬🇧 English',
+      'it': '🇮🇹 Italiano',
+      'pt': '🇵🇹 Português',
+      'es': '🇪🇸 Español'
+    }
+    return labels[lang] || lang
   }
 
   const handleLogout = async () => {
@@ -93,13 +102,18 @@ function Sidebar() {
             <p className="text-xs text-green-600 font-medium capitalize">{user?.role}</p>
           </div>
         </div>
-        <button
-          onClick={toggleLanguage}
-          className="w-full flex items-center gap-3 px-4 py-2 mb-2 text-sm font-medium text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-        >
-          <Globe size={20} />
-          {i18n.language === 'en' ? '🇮🇹 Italiano' : '🇬🇧 English'}
-        </button>
+        <div className="mb-2">
+          <select
+            value={i18n.language}
+            onChange={(e) => changeLanguage(e.target.value)}
+            className="w-full flex items-center gap-3 px-4 py-2 text-sm font-medium text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors cursor-pointer border border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+          >
+            <option value="en">🇬🇧 English</option>
+            <option value="it">🇮🇹 Italiano</option>
+            <option value="pt">🇵🇹 Português</option>
+            <option value="es">🇪🇸 Español</option>
+          </select>
+        </div>
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-3 px-4 py-2 text-sm font-medium text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
