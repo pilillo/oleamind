@@ -6,7 +6,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet-draw/dist/leaflet.draw.css'
 import 'leaflet-draw' // Ensure L.Draw is attached to L
-import { TreeDeciduous, MapPin, Ruler, Trash2, Edit2, Save, X, Plus, Satellite, Cloud, MousePointerClick, Trees, Droplets, Wind, Thermometer, ChevronLeft, ChevronRight, GripVertical } from 'lucide-react'
+import { TreeDeciduous, MapPin, Ruler, Trash2, Edit2, Save, X, Plus, Satellite, Cloud, MousePointerClick, Trees, Droplets, Wind, Thermometer, ChevronLeft, ChevronRight, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { apiCall } from '../config'
 import { useAuth } from '../contexts/AuthContext'
@@ -14,11 +14,45 @@ import { SatelliteInsights } from '../components/satellite/SatelliteInsights'
 import { RiskForecastPanel } from '../components/pests/RiskForecastPanel'
 import { ClimateProfileCard } from '../components/climate/ClimateProfileCard'
 import { WeatherAdvisoryPanel } from '../components/weather/WeatherAdvisoryPanel'
+import jsPDF from 'jspdf'
 
 // Helper function to convert month number to name
 const getMonthName = (month: number): string => {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   return months[month - 1] || 'Unknown'
+}
+
+// Variety colors for consistent styling
+const VARIETY_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899']
+
+// SVG symbol paths for different variety markers
+const VARIETY_SYMBOLS = [
+  // Circle
+  (color: string) => `<circle cx="12" cy="12" r="8" fill="${color}" stroke="white" stroke-width="2"/>`,
+  // Square
+  (color: string) => `<rect x="4" y="4" width="16" height="16" fill="${color}" stroke="white" stroke-width="2"/>`,
+  // Triangle
+  (color: string) => `<polygon points="12,2 22,20 2,20" fill="${color}" stroke="white" stroke-width="2"/>`,
+  // Diamond
+  (color: string) => `<polygon points="12,2 22,12 12,22 2,12" fill="${color}" stroke="white" stroke-width="2"/>`,
+  // Star
+  (color: string) => `<polygon points="12,2 15,9 22,9 17,14 19,22 12,17 5,22 7,14 2,9 9,9" fill="${color}" stroke="white" stroke-width="1.5"/>`,
+  // Pentagon
+  (color: string) => `<polygon points="12,2 22,9 19,20 5,20 2,9" fill="${color}" stroke="white" stroke-width="2"/>`
+]
+
+// Create Leaflet divIcon for variety markers with unique symbols
+const createVarietyIcon = (varietyIndex: number) => {
+  const color = VARIETY_COLORS[varietyIndex % VARIETY_COLORS.length]
+  const symbolFn = VARIETY_SYMBOLS[varietyIndex % VARIETY_SYMBOLS.length]
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">${symbolFn(color)}</svg>`
+  
+  return L.divIcon({
+    html: svg,
+    className: 'variety-marker',
+    iconSize: [24, 24],
+    iconAnchor: [12, 12]
+  })
 }
 
 // Component to handle map zoom to bounds
@@ -136,6 +170,9 @@ function Parcels() {
   
   // Left sidebar state
   const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false)
+  
+  // PDF export state
+  const [isExportingPDF, setIsExportingPDF] = useState(false)
   
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState('')
@@ -302,6 +339,348 @@ function Parcels() {
       console.error('Failed to refresh climate profile', err)
     } finally {
       setClimateLoading(false)
+    }
+  }
+
+  // Helper function to convert hex color to RGB
+  const hexToRgb = (hex: string) => {
+    const r = parseInt(hex.slice(1, 3), 16)
+    const g = parseInt(hex.slice(3, 5), 16)
+    const b = parseInt(hex.slice(5, 7), 16)
+    return { r, g, b }
+  }
+
+  // PDF Export function for parcel with varieties - draws geometry directly
+  const exportParcelPDF = async () => {
+    if (!selectedParcel) {
+      toast.error('Please select a parcel first')
+      return
+    }
+
+    if (!selectedParcel.geojson) {
+      toast.error('Parcel has no geometry defined')
+      return
+    }
+
+    setIsExportingPDF(true)
+    toast.loading('Generating PDF...', { id: 'pdf-export' })
+
+    try {
+      // Parse parcel geometry
+      const parcelGeojson = typeof selectedParcel.geojson === 'string'
+        ? JSON.parse(selectedParcel.geojson)
+        : selectedParcel.geojson
+
+      // Get all coordinates from the parcel polygon
+      let allCoords: [number, number][] = []
+      
+      const extractCoords = (geometry: any) => {
+        if (geometry.type === 'Polygon') {
+          return geometry.coordinates[0] // Outer ring
+        } else if (geometry.type === 'MultiPolygon') {
+          return geometry.coordinates.flat(2)
+        } else if (geometry.type === 'Feature') {
+          return extractCoords(geometry.geometry)
+        } else if (geometry.type === 'FeatureCollection') {
+          return geometry.features.flatMap((f: any) => extractCoords(f))
+        }
+        return []
+      }
+
+      allCoords = extractCoords(parcelGeojson)
+
+      // Also collect tree coordinates from varieties
+      const varietyTrees: { coords: [number, number][], varietyIdx: number }[] = []
+      if (selectedParcel.varieties) {
+        selectedParcel.varieties.forEach((variety: any, idx: number) => {
+          if (variety.geojson) {
+            const varGeojson = typeof variety.geojson === 'string'
+              ? JSON.parse(variety.geojson)
+              : variety.geojson
+            
+            const treeCoords: [number, number][] = []
+            const extractPoints = (geom: any) => {
+              if (geom.type === 'Point') {
+                treeCoords.push(geom.coordinates)
+              } else if (geom.type === 'MultiPoint') {
+                geom.coordinates.forEach((c: [number, number]) => treeCoords.push(c))
+              } else if (geom.type === 'Feature') {
+                extractPoints(geom.geometry)
+              } else if (geom.type === 'FeatureCollection') {
+                geom.features.forEach((f: any) => extractPoints(f))
+              } else if (geom.type === 'GeometryCollection') {
+                geom.geometries.forEach((g: any) => extractPoints(g))
+              }
+            }
+            extractPoints(varGeojson)
+            if (treeCoords.length > 0) {
+              varietyTrees.push({ coords: treeCoords, varietyIdx: idx })
+              allCoords = allCoords.concat(treeCoords)
+            }
+          }
+        })
+      }
+
+      if (allCoords.length === 0) {
+        throw new Error('No coordinates found in parcel geometry')
+      }
+
+      // Calculate bounds
+      const lngs = allCoords.map(c => c[0])
+      const lats = allCoords.map(c => c[1])
+      const minLng = Math.min(...lngs)
+      const maxLng = Math.max(...lngs)
+      const minLat = Math.min(...lats)
+      const maxLat = Math.max(...lats)
+
+      // Create PDF (A4 landscape)
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      })
+
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      const margin = 15
+
+      // Add title
+      pdf.setFontSize(20)
+      pdf.setFont('helvetica', 'bold')
+      pdf.text(`Parcella: ${selectedParcel.name}`, margin, margin + 5)
+
+      // Add parcel info
+      pdf.setFontSize(10)
+      pdf.setFont('helvetica', 'normal')
+      const infoY = margin + 12
+      pdf.text(`Area: ${selectedParcel.area ? selectedParcel.area.toFixed(2) : '-'} ha`, margin, infoY)
+      pdf.text(`Alberi totali: ${selectedParcel.trees_count || '-'}`, margin + 50, infoY)
+      pdf.text(`Generato: ${new Date().toLocaleDateString('it-IT')}`, margin + 110, infoY)
+
+      // Map area dimensions
+      const mapAreaWidth = pageWidth - margin * 2 - 75
+      const mapAreaHeight = pageHeight - margin * 2 - 25
+      const mapAreaX = margin
+      const mapAreaY = margin + 18
+
+      // Draw map background
+      pdf.setFillColor(240, 245, 240) // Light green background
+      pdf.rect(mapAreaX, mapAreaY, mapAreaWidth, mapAreaHeight, 'F')
+
+      // Calculate scale to fit parcel in map area with padding
+      const padding = 10
+      const geoWidth = maxLng - minLng
+      const geoHeight = maxLat - minLat
+      
+      // Maintain aspect ratio
+      const scaleX = (mapAreaWidth - padding * 2) / geoWidth
+      const scaleY = (mapAreaHeight - padding * 2) / geoHeight
+      const scale = Math.min(scaleX, scaleY)
+
+      // Calculate offset to center the geometry
+      const scaledWidth = geoWidth * scale
+      const scaledHeight = geoHeight * scale
+      const offsetX = mapAreaX + (mapAreaWidth - scaledWidth) / 2
+      const offsetY = mapAreaY + (mapAreaHeight - scaledHeight) / 2
+
+      // Function to convert geo coordinates to PDF coordinates
+      const geoToPdf = (lng: number, lat: number): { x: number, y: number } => {
+        // Note: Y is inverted because PDF Y grows downward, but lat grows upward
+        const x = offsetX + (lng - minLng) * scale
+        const y = offsetY + scaledHeight - (lat - minLat) * scale
+        return { x, y }
+      }
+
+      // Draw parcel boundary with distinctive style
+      pdf.setDrawColor(34, 85, 51) // Dark green border
+      pdf.setFillColor(200, 230, 200) // Light green fill
+      pdf.setLineWidth(1.5)
+
+      // Get polygon coordinates
+      let polygonCoords: [number, number][] = []
+      if (parcelGeojson.type === 'Polygon') {
+        polygonCoords = parcelGeojson.coordinates[0]
+      } else if (parcelGeojson.type === 'Feature' && parcelGeojson.geometry.type === 'Polygon') {
+        polygonCoords = parcelGeojson.geometry.coordinates[0]
+      } else if (parcelGeojson.type === 'FeatureCollection') {
+        // Find the first polygon feature
+        const polyFeature = parcelGeojson.features.find((f: any) => 
+          f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'
+        )
+        if (polyFeature && polyFeature.geometry.type === 'Polygon') {
+          polygonCoords = polyFeature.geometry.coordinates[0]
+        }
+      }
+
+      if (polygonCoords.length > 0) {
+        // Build polygon path
+        const points: { x: number, y: number }[] = polygonCoords.map(c => geoToPdf(c[0], c[1]))
+        
+        // Draw polygon outline
+        pdf.setLineWidth(2)
+        pdf.setDrawColor(34, 85, 51)
+        
+        // Draw polygon manually
+        for (let i = 0; i < points.length; i++) {
+          const current = points[i]
+          const next = points[(i + 1) % points.length]
+          pdf.line(current.x, current.y, next.x, next.y)
+        }
+      }
+
+      // Draw variety trees with unique symbols
+      varietyTrees.forEach(({ coords, varietyIdx }) => {
+        const color = VARIETY_COLORS[varietyIdx % VARIETY_COLORS.length]
+        const rgb = hexToRgb(color)
+        
+        pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+        pdf.setDrawColor(255, 255, 255)
+        pdf.setLineWidth(0.3)
+
+        coords.forEach(coord => {
+          const pos = geoToPdf(coord[0], coord[1])
+          const symbolSize = 1.5
+
+          switch (varietyIdx % 6) {
+            case 0: // Circle
+              pdf.circle(pos.x, pos.y, symbolSize, 'FD')
+              break
+            case 1: // Square
+              pdf.rect(pos.x - symbolSize, pos.y - symbolSize, symbolSize * 2, symbolSize * 2, 'FD')
+              break
+            case 2: // Triangle
+              pdf.triangle(
+                pos.x, pos.y - symbolSize * 1.2,
+                pos.x - symbolSize, pos.y + symbolSize * 0.8,
+                pos.x + symbolSize, pos.y + symbolSize * 0.8,
+                'FD'
+              )
+              break
+            case 3: // Diamond
+              pdf.triangle(pos.x, pos.y - symbolSize, pos.x - symbolSize, pos.y, pos.x, pos.y + symbolSize, 'F')
+              pdf.triangle(pos.x, pos.y - symbolSize, pos.x + symbolSize, pos.y, pos.x, pos.y + symbolSize, 'F')
+              break
+            case 4: // Double circle
+              pdf.circle(pos.x, pos.y, symbolSize * 1.2, 'FD')
+              pdf.setFillColor(255, 255, 255)
+              pdf.circle(pos.x, pos.y, symbolSize * 0.6, 'F')
+              pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+              break
+            case 5: // Larger circle
+              pdf.circle(pos.x, pos.y, symbolSize * 1.1, 'FD')
+              break
+          }
+        })
+      })
+
+      // Draw map border
+      pdf.setDrawColor(100, 100, 100)
+      pdf.setLineWidth(0.5)
+      pdf.rect(mapAreaX, mapAreaY, mapAreaWidth, mapAreaHeight)
+
+      // Add legend on the right side
+      const legendX = mapAreaX + mapAreaWidth + 8
+      const legendY = mapAreaY
+
+      // Legend title
+      pdf.setFontSize(12)
+      pdf.setFont('helvetica', 'bold')
+      pdf.text('Legenda', legendX, legendY + 5)
+
+      pdf.setFontSize(9)
+      pdf.setFont('helvetica', 'normal')
+      let currentY = legendY + 15
+
+      // Draw parcel boundary symbol in legend
+      pdf.setDrawColor(34, 85, 51)
+      pdf.setFillColor(220, 237, 220)
+      pdf.setLineWidth(1.5)
+      pdf.rect(legendX, currentY - 3, 12, 8, 'FD')
+      pdf.text('Confine Parcella', legendX + 16, currentY + 2)
+      currentY += 14
+
+      // Varieties section
+      if (selectedParcel.varieties && selectedParcel.varieties.length > 0) {
+        pdf.setFont('helvetica', 'bold')
+        pdf.text('Varietà:', legendX, currentY)
+        currentY += 10
+
+        pdf.setFont('helvetica', 'normal')
+        selectedParcel.varieties.forEach((variety: any, idx: number) => {
+          const color = VARIETY_COLORS[idx % VARIETY_COLORS.length]
+          const rgb = hexToRgb(color)
+          const treeCount = variety.geojson ? getTreeCount(variety.geojson) : 0
+
+          pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+          pdf.setDrawColor(255, 255, 255)
+          pdf.setLineWidth(0.3)
+
+          const symbolX = legendX + 5
+          const symbolY = currentY
+
+          switch (idx % 6) {
+            case 0: // Circle
+              pdf.circle(symbolX, symbolY, 3, 'FD')
+              break
+            case 1: // Square
+              pdf.rect(symbolX - 3, symbolY - 3, 6, 6, 'FD')
+              break
+            case 2: // Triangle
+              pdf.triangle(symbolX, symbolY - 3, symbolX - 3, symbolY + 2, symbolX + 3, symbolY + 2, 'FD')
+              break
+            case 3: // Diamond
+              pdf.triangle(symbolX, symbolY - 3, symbolX - 3, symbolY, symbolX, symbolY + 3, 'F')
+              pdf.triangle(symbolX, symbolY - 3, symbolX + 3, symbolY, symbolX, symbolY + 3, 'F')
+              break
+            case 4: // Double circle
+              pdf.circle(symbolX, symbolY, 4, 'FD')
+              pdf.setFillColor(255, 255, 255)
+              pdf.circle(symbolX, symbolY, 2, 'F')
+              pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+              pdf.circle(symbolX, symbolY, 1.5, 'F')
+              break
+            case 5: // Larger circle
+              pdf.circle(symbolX, symbolY, 3.5, 'FD')
+              break
+          }
+
+          const varietyName = variety.cultivar || `Varietà ${idx + 1}`
+          pdf.text(varietyName, legendX + 12, currentY + 1)
+          pdf.setFontSize(7)
+          pdf.setTextColor(100, 100, 100)
+          pdf.text(`(${treeCount} alberi)`, legendX + 12, currentY + 5)
+          pdf.setFontSize(9)
+          pdf.setTextColor(0, 0, 0)
+
+          currentY += 14
+        })
+      } else {
+        pdf.text('Nessuna varietà registrata', legendX, currentY)
+      }
+
+      // Add scale indicator
+      const scaleBarY = mapAreaY + mapAreaHeight - 8
+      const scaleBarWidth = 30
+      pdf.setDrawColor(50, 50, 50)
+      pdf.setLineWidth(0.5)
+      pdf.line(mapAreaX + 5, scaleBarY, mapAreaX + 5 + scaleBarWidth, scaleBarY)
+      pdf.line(mapAreaX + 5, scaleBarY - 2, mapAreaX + 5, scaleBarY + 2)
+      pdf.line(mapAreaX + 5 + scaleBarWidth, scaleBarY - 2, mapAreaX + 5 + scaleBarWidth, scaleBarY + 2)
+      
+      // Calculate approximate distance
+      const metersPerMm = geoWidth * 111320 * Math.cos(minLat * Math.PI / 180) / scaledWidth
+      const scaleDistance = Math.round(metersPerMm * scaleBarWidth)
+      pdf.setFontSize(7)
+      pdf.text(`~${scaleDistance}m`, mapAreaX + 5 + scaleBarWidth / 2 - 5, scaleBarY + 5)
+
+      // Save the PDF
+      pdf.save(`${selectedParcel.name.replace(/\s+/g, '_')}_mappa_parcella.pdf`)
+      toast.success('PDF exported successfully!', { id: 'pdf-export' })
+    } catch (error) {
+      console.error('Failed to export PDF:', error)
+      toast.error('Failed to export PDF', { id: 'pdf-export' })
+    } finally {
+      setIsExportingPDF(false)
     }
   }
 
@@ -892,8 +1271,7 @@ function Parcels() {
                             : variety.geojson
 
                           // Generate a color based on variety index
-                          const colors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899']
-                          const color = colors[vIdx % colors.length]
+                          const color = VARIETY_COLORS[vIdx % VARIETY_COLORS.length]
 
                           // Determine highlight state
                           const isHighlighted = highlightedVarietyIndex === vIdx
@@ -904,19 +1282,33 @@ function Parcels() {
                           const treeCount = getTreeCount(variety.geojson)
                           const uniqueKey = `variety-${variety.ID || vIdx}-trees-${treeCount}-hl-${highlightedVarietyIndex}`
 
+                          // Create variety icon with unique symbol
+                          const varietyIcon = createVarietyIcon(vIdx)
+                          
+                          // Scale and opacity based on highlight state
+                          const scale = isHighlighted ? 1.3 : (isDimmed ? 0.7 : 1)
+                          const opacity = isDimmed ? 0.4 : 1
+
                           return (
                             <GeoJSON
                               key={uniqueKey}
                               data={varietyGeojson}
                               pointToLayer={(_feature, latlng) => {
-                                return L.circleMarker(latlng, {
-                                  radius: isHighlighted ? 8 : (isDimmed ? 4 : 6),
-                                  fillColor: color,
-                                  color: isHighlighted ? color : '#fff',
-                                  weight: isHighlighted ? 3 : 2,
-                                  opacity: isDimmed ? 0.3 : 1,
-                                  fillOpacity: isDimmed ? 0.2 : (isHighlighted ? 1 : 0.8)
+                                const marker = L.marker(latlng, { 
+                                  icon: varietyIcon,
+                                  opacity: opacity
                                 })
+                                // Apply scale transform for highlighting
+                                if (scale !== 1) {
+                                  marker.on('add', () => {
+                                    const el = marker.getElement()
+                                    if (el) {
+                                      el.style.transform = el.style.transform + ` scale(${scale})`
+                                      el.style.zIndex = isHighlighted ? '1000' : '100'
+                                    }
+                                  })
+                                }
+                                return marker
                               }}
                               style={() => ({
                                 color: color,
@@ -936,8 +1328,7 @@ function Parcels() {
 
                     {/* Render edit-mode variety geometries */}
                     {isEditing && selectedParcel?.ID === parcel.ID && editVarieties.map((variety: any, vIdx: number) => {
-                      const colors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899']
-                      const color = colors[vIdx % colors.length]
+                      const color = VARIETY_COLORS[vIdx % VARIETY_COLORS.length]
 
                       // Create a unique key that changes when geometry is cleared
                       const treeCount = variety.geojson ? getTreeCount(variety.geojson) : 0
@@ -955,19 +1346,15 @@ function Parcels() {
                           ? JSON.parse(variety.geojson)
                           : variety.geojson
 
+                        // Create variety icon with unique symbol
+                        const varietyIcon = createVarietyIcon(vIdx)
+
                         return (
                           <GeoJSON
                             key={uniqueKey}
                             data={varietyGeojson}
                             pointToLayer={(_feature, latlng) => {
-                              return L.circleMarker(latlng, {
-                                radius: 6,
-                                fillColor: color,
-                                color: '#fff',
-                                weight: 2,
-                                opacity: 1,
-                                fillOpacity: 0.8
-                              })
+                              return L.marker(latlng, { icon: varietyIcon })
                             }}
                             style={() => ({
                               color: color,
@@ -1424,32 +1811,47 @@ function Parcels() {
                 </div>
 
                 <div>
-                  <h4 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                    <Trees size={16} className="text-green-600" />
-                    Varieties & Layout
-                  </h4>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                      <Trees size={16} className="text-green-600" />
+                      Varieties & Layout
+                    </h4>
+                    {selectedParcel.varieties && selectedParcel.varieties.length > 0 && (
+                      <button
+                        onClick={exportParcelPDF}
+                        disabled={isExportingPDF}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                      >
+                        <FileText size={14} />
+                        {isExportingPDF ? 'Exporting...' : 'Export PDF'}
+                      </button>
+                    )}
+                  </div>
                   {selectedParcel.varieties && selectedParcel.varieties.length > 0 ? (
                     <div className="space-y-2">
                       {selectedParcel.varieties.map((v: any, i: number) => {
                         const treeCount = v.geojson ? getTreeCount(v.geojson) : 0
-                        const colors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899']
-                        const color = colors[i % colors.length]
+                        const color = VARIETY_COLORS[i % VARIETY_COLORS.length]
+                        const symbolFn = VARIETY_SYMBOLS[i % VARIETY_SYMBOLS.length]
                         const isHighlighted = highlightedVarietyIndex === i
                         return (
                           <div 
                             key={i} 
                             className={`p-3 rounded-lg border shadow-sm flex justify-between items-center cursor-pointer transition-all duration-200 ${
                               isHighlighted 
-                                ? 'bg-gray-100 border-gray-400 ring-2 ring-offset-1' 
+                                ? 'bg-gray-100 ring-2 ring-offset-1' 
                                 : 'bg-white border-gray-200 hover:border-gray-300'
                             }`}
-                            style={isHighlighted ? { ringColor: color } : {}}
+                            style={isHighlighted ? { borderColor: color, outlineColor: color } : {}}
                             onClick={() => setHighlightedVarietyIndex(isHighlighted ? null : i)}
                           >
                             <div className="flex items-center gap-3">
+                              {/* Variety symbol */}
                               <div 
-                                className="w-4 h-4 rounded-full border-2 border-white shadow-sm flex-shrink-0"
-                                style={{ backgroundColor: color }}
+                                className="w-6 h-6 flex-shrink-0"
+                                dangerouslySetInnerHTML={{
+                                  __html: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">${symbolFn(color)}</svg>`
+                                }}
                               />
                               <div>
                                 <span className="font-semibold text-gray-800 block">{v.cultivar || 'Unknown'}</span>
