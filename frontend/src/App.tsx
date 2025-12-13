@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
-import { LayoutDashboard, Map, Package, ClipboardList, LogOut, User, Globe, Building2, BarChart2, Users as UsersIcon } from 'lucide-react'
+import { LayoutDashboard, Map, Package, ClipboardList, LogOut, User, Building2, BarChart2, Users as UsersIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
@@ -39,16 +39,6 @@ function Sidebar() {
   const changeLanguage = (lang: string) => {
     i18n.changeLanguage(lang)
     localStorage.setItem('language', lang)
-  }
-
-  const getLanguageLabel = (lang: string) => {
-    const labels: Record<string, string> = {
-      'en': '🇬🇧 English',
-      'it': '🇮🇹 Italiano',
-      'pt': '🇵🇹 Português',
-      'es': '🇪🇸 Español'
-    }
-    return labels[lang] || lang
   }
 
   const handleLogout = async () => {
@@ -112,6 +102,11 @@ function Sidebar() {
             <option value="it">🇮🇹 Italiano</option>
             <option value="pt">🇵🇹 Português</option>
             <option value="es">🇪🇸 Español</option>
+            <option value="el">🇬🇷 Ελληνικά</option>
+            <option value="fr">🇫🇷 Français</option>
+            <option value="tr">🇹🇷 Türkçe</option>
+            <option value="hr">🇭🇷 Hrvatski</option>
+            <option value="ar">🇸🇾 العربية</option>
           </select>
         </div>
         <button

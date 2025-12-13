@@ -660,18 +660,61 @@ function Parcels() {
 
       // Add scale indicator
       const scaleBarY = mapAreaY + mapAreaHeight - 8
-      const scaleBarWidth = 30
-      pdf.setDrawColor(50, 50, 50)
-      pdf.setLineWidth(0.5)
-      pdf.line(mapAreaX + 5, scaleBarY, mapAreaX + 5 + scaleBarWidth, scaleBarY)
-      pdf.line(mapAreaX + 5, scaleBarY - 2, mapAreaX + 5, scaleBarY + 2)
-      pdf.line(mapAreaX + 5 + scaleBarWidth, scaleBarY - 2, mapAreaX + 5 + scaleBarWidth, scaleBarY + 2)
+      const scaleBarX = mapAreaX + 5
       
-      // Calculate approximate distance
-      const metersPerMm = geoWidth * 111320 * Math.cos(minLat * Math.PI / 180) / scaledWidth
-      const scaleDistance = Math.round(metersPerMm * scaleBarWidth)
-      pdf.setFontSize(7)
-      pdf.text(`~${scaleDistance}m`, mapAreaX + 5 + scaleBarWidth / 2 - 5, scaleBarY + 5)
+      // Calculate scale using center latitude for better accuracy
+      const centerLat = (minLat + maxLat) / 2
+      // Meters per degree of longitude at this latitude
+      const metersPerDegreeLng = 111320 * Math.cos(centerLat * Math.PI / 180)
+      // Real-world width represented by the scaled geometry
+      const realWorldWidthMeters = geoWidth * metersPerDegreeLng
+      // Meters per mm on PDF
+      const metersPerMm = realWorldWidthMeters / scaledWidth
+      
+      // Choose a nice round number for scale bar
+      const rawDistance = metersPerMm * 30 // approximate distance for 30mm bar
+      let niceDistance: number
+      let scaleBarWidth: number
+      
+      // Round to nice values: 1, 2, 5, 10, 20, 50, 100, 200, 500, etc.
+      const magnitude = Math.pow(10, Math.floor(Math.log10(rawDistance)))
+      const normalized = rawDistance / magnitude
+      if (normalized < 1.5) niceDistance = 1 * magnitude
+      else if (normalized < 3.5) niceDistance = 2 * magnitude
+      else if (normalized < 7.5) niceDistance = 5 * magnitude
+      else niceDistance = 10 * magnitude
+      
+      // Calculate actual bar width for the nice distance
+      scaleBarWidth = niceDistance / metersPerMm
+      
+      // Draw scale bar
+      pdf.setDrawColor(50, 50, 50)
+      pdf.setFillColor(255, 255, 255)
+      pdf.setLineWidth(0.5)
+      
+      // Background rectangle for visibility
+      pdf.rect(scaleBarX - 2, scaleBarY - 6, scaleBarWidth + 4, 14, 'F')
+      
+      // Scale bar line
+      pdf.setLineWidth(1)
+      pdf.line(scaleBarX, scaleBarY, scaleBarX + scaleBarWidth, scaleBarY)
+      // End caps
+      pdf.line(scaleBarX, scaleBarY - 3, scaleBarX, scaleBarY + 3)
+      pdf.line(scaleBarX + scaleBarWidth, scaleBarY - 3, scaleBarX + scaleBarWidth, scaleBarY + 3)
+      
+      // Format distance text
+      let distanceText: string
+      if (niceDistance >= 1000) {
+        distanceText = `${niceDistance / 1000} km`
+      } else {
+        distanceText = `${niceDistance} m`
+      }
+      
+      pdf.setFontSize(8)
+      pdf.setTextColor(50, 50, 50)
+      const textWidth = pdf.getTextWidth(distanceText)
+      pdf.text(distanceText, scaleBarX + scaleBarWidth / 2 - textWidth / 2, scaleBarY + 6)
+      pdf.setTextColor(0, 0, 0)
 
       // Save the PDF
       pdf.save(`${selectedParcel.name.replace(/\s+/g, '_')}_mappa_parcella.pdf`)
