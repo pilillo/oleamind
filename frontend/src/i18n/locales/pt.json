@@ -135,6 +135,8 @@
     "no_varieties_recorded": "Sem variedades registadas",
     "remove_variety": "Remover variedade",
     "clear_trees": "Limpar todas as árvores",
+    "clear_highlight": "Limpar destaque",
+    "click_to_highlight": "Clique para destacar no mapa",
     "ndvi_analysis": "Análise NDVI",
     "health_assessment": "Avaliação de Saúde",
     "acquisition_date": "Data de Aquisição",

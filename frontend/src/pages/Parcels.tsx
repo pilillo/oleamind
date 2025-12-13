@@ -145,6 +145,8 @@ function Parcels() {
   const [editVarieties, setEditVarieties] = useState<any[]>([])
   // Drawing mode state
   const [drawingVarietyIndex, setDrawingVarietyIndex] = useState<number | null>(null)
+  // Highlighted variety for visualization
+  const [highlightedVarietyIndex, setHighlightedVarietyIndex] = useState<number | null>(null)
   // New Parcel Creation State
   const [isCreating, setIsCreating] = useState(false)
   const [newParcelGeometry, setNewParcelGeometry] = useState<any>(null)
@@ -227,6 +229,7 @@ function Parcels() {
   const zoomToParcel = (parcel: any) => {
     setSelectedParcel(parcel)
     setShowInfoPanel(true) // Show panel when selecting a parcel
+    setHighlightedVarietyIndex(null) // Reset variety highlight when selecting new parcel
 
     // Clear old data to prevent showing wrong data
     setNdviData(null)
@@ -892,9 +895,14 @@ function Parcels() {
                           const colors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899']
                           const color = colors[vIdx % colors.length]
 
-                          // Create unique key for re-rendering
+                          // Determine highlight state
+                          const isHighlighted = highlightedVarietyIndex === vIdx
+                          const hasHighlight = highlightedVarietyIndex !== null
+                          const isDimmed = hasHighlight && !isHighlighted
+
+                          // Create unique key for re-rendering (include highlight state)
                           const treeCount = getTreeCount(variety.geojson)
-                          const uniqueKey = `variety-${variety.ID || vIdx}-trees-${treeCount}`
+                          const uniqueKey = `variety-${variety.ID || vIdx}-trees-${treeCount}-hl-${highlightedVarietyIndex}`
 
                           return (
                             <GeoJSON
@@ -902,19 +910,20 @@ function Parcels() {
                               data={varietyGeojson}
                               pointToLayer={(_feature, latlng) => {
                                 return L.circleMarker(latlng, {
-                                  radius: 6,
+                                  radius: isHighlighted ? 8 : (isDimmed ? 4 : 6),
                                   fillColor: color,
-                                  color: '#fff',
-                                  weight: 2,
-                                  opacity: 1,
-                                  fillOpacity: 0.8
+                                  color: isHighlighted ? color : '#fff',
+                                  weight: isHighlighted ? 3 : 2,
+                                  opacity: isDimmed ? 0.3 : 1,
+                                  fillOpacity: isDimmed ? 0.2 : (isHighlighted ? 1 : 0.8)
                                 })
                               }}
                               style={() => ({
                                 color: color,
                                 fillColor: color,
-                                fillOpacity: 0.3,
-                                weight: 2
+                                fillOpacity: isDimmed ? 0.1 : (isHighlighted ? 0.5 : 0.3),
+                                weight: isHighlighted ? 3 : 2,
+                                opacity: isDimmed ? 0.3 : 1
                               })}
                             />
                           )
@@ -1423,11 +1432,29 @@ function Parcels() {
                     <div className="space-y-2">
                       {selectedParcel.varieties.map((v: any, i: number) => {
                         const treeCount = v.geojson ? getTreeCount(v.geojson) : 0
+                        const colors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899']
+                        const color = colors[i % colors.length]
+                        const isHighlighted = highlightedVarietyIndex === i
                         return (
-                          <div key={i} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex justify-between items-center hover:border-green-200 transition-colors">
-                            <div>
-                              <span className="font-semibold text-gray-800 block">{v.cultivar || 'Unknown'}</span>
-                              <span className="text-xs text-gray-500">Planted: {v.planting_date || 'N/A'}</span>
+                          <div 
+                            key={i} 
+                            className={`p-3 rounded-lg border shadow-sm flex justify-between items-center cursor-pointer transition-all duration-200 ${
+                              isHighlighted 
+                                ? 'bg-gray-100 border-gray-400 ring-2 ring-offset-1' 
+                                : 'bg-white border-gray-200 hover:border-gray-300'
+                            }`}
+                            style={isHighlighted ? { ringColor: color } : {}}
+                            onClick={() => setHighlightedVarietyIndex(isHighlighted ? null : i)}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div 
+                                className="w-4 h-4 rounded-full border-2 border-white shadow-sm flex-shrink-0"
+                                style={{ backgroundColor: color }}
+                              />
+                              <div>
+                                <span className="font-semibold text-gray-800 block">{v.cultivar || 'Unknown'}</span>
+                                <span className="text-xs text-gray-500">Planted: {v.planting_date || 'N/A'}</span>
+                              </div>
                             </div>
                             <div className="text-right">
                               <span className="text-sm font-bold text-green-700 bg-green-50 px-2 py-1 rounded-md border border-green-100">
@@ -1437,6 +1464,14 @@ function Parcels() {
                           </div>
                         )
                       })}
+                      {highlightedVarietyIndex !== null && (
+                        <button
+                          onClick={() => setHighlightedVarietyIndex(null)}
+                          className="w-full text-xs text-gray-500 hover:text-gray-700 py-1 transition-colors"
+                        >
+                          Clear highlight
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className="text-center py-4 bg-gray-50 rounded-lg border border-dashed border-gray-200">
