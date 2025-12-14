@@ -84,6 +84,11 @@ func (s *ClimateProfileService) createFromLocation(parcelID uint) (*models.Clima
 	// Extract full location data
 	location := extractLocationFromGeometry(parcel.GeoJSON)
 
+	// Validate location data before proceeding
+	if location.Latitude < -90 || location.Latitude > 90 || location.Longitude < -180 || location.Longitude > 180 {
+		return nil, fmt.Errorf("invalid coordinates extracted from parcel geometry: lat=%.4f, lon=%.4f", location.Latitude, location.Longitude)
+	}
+
 	// Analyze climate based on location
 	climate := analyzeClimateFromLocation(location)
 
@@ -185,18 +190,40 @@ func extractLocationFromGeometry(geojson models.PostGISGeoJSON) LocationData {
 
 	var data map[string]interface{}
 	if err := json.Unmarshal(geojson, &data); err != nil {
+		slog.Warn("Failed to unmarshal GeoJSON", "error", err)
 		location.IsNorthern = true
 		location.DistanceToSea = estimateDistanceToSea(location.Latitude, location.Longitude)
 		return location
 	}
 
-	// Extract coordinates from GeoJSON (Polygon or MultiPolygon)
-	// Calculate centroid for better representation
-	if coords, ok := data["coordinates"].([]interface{}); ok && len(coords) > 0 {
-		var sumLat, sumLon float64
-		var count int
+	// Get geometry type
+	geomType, _ := data["type"].(string)
+	coords, ok := data["coordinates"].([]interface{})
+	if !ok || len(coords) == 0 {
+		slog.Warn("Invalid or empty coordinates in GeoJSON", "type", geomType)
+		location.IsNorthern = true
+		location.DistanceToSea = estimateDistanceToSea(location.Latitude, location.Longitude)
+		return location
+	}
 
-		// Iterate through all points to find centroid
+	var sumLat, sumLon float64
+	var count int
+
+	// Handle different geometry types
+	switch geomType {
+	case "Point":
+		// Point: [lon, lat]
+		if len(coords) >= 2 {
+			if lon, ok := coords[0].(float64); ok {
+				sumLon = lon
+			}
+			if lat, ok := coords[1].(float64); ok {
+				sumLat = lat
+			}
+			count = 1
+		}
+	case "Polygon":
+		// Polygon: [[[lon, lat], ...]]
 		if ring, ok := coords[0].([]interface{}); ok {
 			for _, p := range ring {
 				if point, ok := p.([]interface{}); ok && len(point) >= 2 {
@@ -210,10 +237,56 @@ func extractLocationFromGeometry(geojson models.PostGISGeoJSON) LocationData {
 				}
 			}
 		}
+	case "MultiPolygon":
+		// MultiPolygon: [[[[lon, lat], ...]]]
+		for _, polygon := range coords {
+			if poly, ok := polygon.([]interface{}); ok && len(poly) > 0 {
+				if ring, ok := poly[0].([]interface{}); ok {
+					for _, p := range ring {
+						if point, ok := p.([]interface{}); ok && len(point) >= 2 {
+							if lon, ok := point[0].(float64); ok {
+								sumLon += lon
+							}
+							if lat, ok := point[1].(float64); ok {
+								sumLat += lat
+							}
+							count++
+						}
+					}
+				}
+			}
+		}
+	case "LineString":
+		// LineString: [[lon, lat], ...]
+		for _, p := range coords {
+			if point, ok := p.([]interface{}); ok && len(point) >= 2 {
+				if lon, ok := point[0].(float64); ok {
+					sumLon += lon
+				}
+				if lat, ok := point[1].(float64); ok {
+					sumLat += lat
+				}
+				count++
+			}
+		}
+	default:
+		slog.Warn("Unsupported geometry type", "type", geomType)
+		location.IsNorthern = true
+		location.DistanceToSea = estimateDistanceToSea(location.Latitude, location.Longitude)
+		return location
+	}
 
-		if count > 0 {
-			location.Latitude = sumLat / float64(count)
-			location.Longitude = sumLon / float64(count)
+	// Validate and set coordinates
+	if count > 0 {
+		lat := sumLat / float64(count)
+		lon := sumLon / float64(count)
+		
+		// Validate coordinate ranges
+		if lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180 {
+			location.Latitude = lat
+			location.Longitude = lon
+		} else {
+			slog.Warn("Invalid coordinates extracted from GeoJSON", "lat", lat, "lon", lon)
 		}
 	}
 

@@ -156,7 +156,11 @@
     "poor": "Poor",
     "moderate": "Moderate",
     "good": "Good",
-    "excellent": "Excellent"
+    "excellent": "Excellent",
+    "generated": "Generated",
+    "variety": "Variety",
+    "variety_legend": "Variety Legend",
+    "tree_count": "trees"
   },
   "operations": {
     "title": "Operations Log",

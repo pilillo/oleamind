@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { MapContainer, TileLayer, GeoJSON, useMap, LayersControl, ImageOverlay, useMapEvents, LayerGroup } from 'react-leaflet'
+import { MapContainer, TileLayer, GeoJSON, useMap, LayersControl, ImageOverlay, useMapEvents, LayerGroup, Marker } from 'react-leaflet'
 // @ts-ignore
 import { EditControl } from 'react-leaflet-draw'
 import L from 'leaflet'
@@ -15,6 +15,7 @@ import { RiskForecastPanel } from '../components/pests/RiskForecastPanel'
 import { ClimateProfileCard } from '../components/climate/ClimateProfileCard'
 import { WeatherAdvisoryPanel } from '../components/weather/WeatherAdvisoryPanel'
 import jsPDF from 'jspdf'
+import { useTranslation } from 'react-i18next'
 
 // Helper function to convert month number to name
 const getMonthName = (month: number): string => {
@@ -41,11 +42,61 @@ const VARIETY_SYMBOLS = [
   (color: string) => `<polygon points="12,2 22,9 19,20 5,20 2,9" fill="${color}" stroke="white" stroke-width="2"/>`
 ]
 
-// Create Leaflet divIcon for variety markers with unique symbols
-const createVarietyIcon = (varietyIndex: number) => {
+// Generate initials from cultivar name
+const getVarietyInitials = (cultivarName: string): string => {
+  if (!cultivarName) return ''
+  
+  const words = cultivarName.trim().split(/\s+/)
+  
+  if (words.length === 1) {
+    // Single word: take first 2 characters
+    return words[0].substring(0, 2).toUpperCase()
+  } else if (words.length === 2) {
+    // Two words: first letter of each
+    return (words[0][0] + words[1][0]).toUpperCase()
+  } else {
+    // Three or more words: handle special cases like "di", "de", etc.
+    const skipWords = ['di', 'de', 'del', 'della', 'da', 'delle', 'dei']
+    const significantWords = words.filter(w => !skipWords.includes(w.toLowerCase()))
+    
+    if (significantWords.length >= 2) {
+      // Use first letter of first word + first letter of last significant word
+      return (significantWords[0][0] + significantWords[significantWords.length - 1][0]).toUpperCase()
+    } else if (significantWords.length === 1) {
+      // Only one significant word: take first 2 letters
+      return significantWords[0].substring(0, 2).toUpperCase()
+    } else {
+      // Fallback: first two letters of first word
+      return words[0].substring(0, 2).toUpperCase()
+    }
+  }
+}
+
+// Create Leaflet divIcon for variety markers with unique symbols and initials
+const createVarietyIcon = (varietyIndex: number, cultivarName: string = '') => {
   const color = VARIETY_COLORS[varietyIndex % VARIETY_COLORS.length]
   const symbolFn = VARIETY_SYMBOLS[varietyIndex % VARIETY_SYMBOLS.length]
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">${symbolFn(color)}</svg>`
+  const initials = getVarietyInitials(cultivarName)
+  
+  // Create SVG with symbol and text label centered on top with semi-transparent background
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+      ${symbolFn(color)}
+      ${initials ? `
+        <rect x="7" y="8.5" width="10" height="9" rx="2" 
+              fill="#333" 
+              fill-opacity="0.65"/>
+        <text x="12" y="15" 
+              text-anchor="middle" 
+              font-size="9" 
+              font-weight="bold" 
+              fill="white" 
+              font-family="Inter, Arial, sans-serif">
+          ${initials}
+        </text>
+      ` : ''}
+    </svg>
+  `
   
   return L.divIcon({
     html: svg,
@@ -58,13 +109,36 @@ const createVarietyIcon = (varietyIndex: number) => {
 // Component to handle map zoom to bounds
 function MapController({ bounds }: { bounds: L.LatLngBounds | null }) {
   const map = useMap()
+  const previousBoundsRef = useRef<L.LatLngBounds | null>(null)
+  const rafIdRef = useRef<number | null>(null)
 
   useEffect(() => {
     if (bounds && bounds.isValid()) {
-      map.fitBounds(bounds, {
-        padding: [100, 100],
-        maxZoom: 18  // Prevent zooming in too close
-      })
+      // Only zoom if bounds actually changed significantly
+      const prev = previousBoundsRef.current
+      if (!prev || !prev.equals(bounds, 0.0001)) {
+        // Cancel any pending animation frame
+        if (rafIdRef.current !== null) {
+          cancelAnimationFrame(rafIdRef.current)
+        }
+        
+        // Use requestAnimationFrame to batch DOM updates and reduce forced reflows
+        rafIdRef.current = requestAnimationFrame(() => {
+          map.fitBounds(bounds, {
+            padding: [100, 100],
+            maxZoom: 18  // Prevent zooming in too close
+          })
+          previousBoundsRef.current = bounds
+          rafIdRef.current = null
+        })
+      }
+    }
+    
+    return () => {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current)
+        rafIdRef.current = null
+      }
     }
   }, [bounds, map])
 
@@ -144,7 +218,72 @@ function MapClickHandler({ onMapClick, enabled }: { onMapClick: (latlng: L.LatLn
   return null
 }
 
+// Component for draggable markers
+function DraggableMarker({ position, icon, opacity = 1, scale = 1, zIndex = 100, onDragEnd, onRemove }: { 
+  position: L.LatLng, 
+  icon: L.Icon | L.DivIcon,
+  opacity?: number,
+  scale?: number,
+  zIndex?: number,
+  onDragEnd: (latlng: L.LatLng) => void,
+  onRemove?: () => void
+}) {
+  const [currentPosition, setCurrentPosition] = useState(position)
+  const wasDraggedRef = useRef(false)
+
+  useEffect(() => {
+    setCurrentPosition(position)
+  }, [position])
+
+  return (
+    <Marker
+      position={currentPosition}
+      icon={icon}
+      draggable={true}
+      opacity={opacity}
+      zIndexOffset={zIndex}
+      eventHandlers={{
+        dragstart: () => {
+          wasDraggedRef.current = false
+        },
+        drag: () => {
+          wasDraggedRef.current = true
+        },
+        dragend: (e) => {
+          const marker = e.target as L.Marker
+          const newLatLng = marker.getLatLng()
+          setCurrentPosition(newLatLng)
+          onDragEnd(newLatLng)
+          // Reset after a short delay to allow click event to check
+          setTimeout(() => {
+            wasDraggedRef.current = false
+          }, 100)
+        },
+        click: (e) => {
+          // Remove marker on click if onRemove handler is provided and marker wasn't dragged
+          if (onRemove && !wasDraggedRef.current) {
+            e.originalEvent.stopPropagation() // Prevent map click
+            onRemove()
+          }
+          wasDraggedRef.current = false
+        },
+        add: (e) => {
+          // Apply scale transform
+          if (scale !== 1) {
+            const marker = e.target as L.Marker
+            const el = marker.getElement()
+            if (el) {
+              el.style.transform = el.style.transform + ` scale(${scale})`
+            }
+          }
+        }
+      }}
+    />
+  )
+}
+
 function Parcels() {
+  const { t } = useTranslation()
   const { user } = useAuth()
   const [parcels, setParcels] = useState<any[]>([])
   const [selectedParcel, setSelectedParcel] = useState<any>(null)
@@ -182,6 +321,8 @@ function Parcels() {
   const [editVarieties, setEditVarieties] = useState<any[]>([])
   // Drawing mode state
   const [drawingVarietyIndex, setDrawingVarietyIndex] = useState<number | null>(null)
+  // Deleting plants mode state
+  const [deletingPlantIndex, setDeletingPlantIndex] = useState<number | null>(null)
   // Highlighted variety for visualization
   const [highlightedVarietyIndex, setHighlightedVarietyIndex] = useState<number | null>(null)
   // New Parcel Creation State
@@ -215,6 +356,7 @@ function Parcels() {
       setEditVarieties(selectedParcel.varieties || [])
       setIsEditing(false)
       setDrawingVarietyIndex(null) // Reset drawing mode
+      setDeletingPlantIndex(null) // Reset deleting mode
     }
   }, [selectedParcel])
 
@@ -317,6 +459,9 @@ function Parcels() {
         const data = await response.json()
         setClimateProfile(data)
       } else {
+        // Log error details for debugging
+        const errorText = await response.text().catch(() => 'Unable to read error response')
+        console.warn(`Failed to fetch climate profile for parcel ${parcelId}:`, response.status, errorText)
         setClimateProfile(null)
       }
     } catch (err) {
@@ -453,9 +598,9 @@ function Parcels() {
       pdf.setFontSize(10)
       pdf.setFont('helvetica', 'normal')
       const infoY = margin + 12
-      pdf.text(`Area: ${selectedParcel.area ? selectedParcel.area.toFixed(2) : '-'} ha`, margin, infoY)
-      pdf.text(`Alberi totali: ${selectedParcel.trees_count || '-'}`, margin + 50, infoY)
-      pdf.text(`Generato: ${new Date().toLocaleDateString('it-IT')}`, margin + 110, infoY)
+      pdf.text(`${t('parcels.area')}: ${selectedParcel.area ? selectedParcel.area.toFixed(2) : '-'} ha`, margin, infoY)
+      pdf.text(`${t('parcels.total_trees')}: ${selectedParcel.trees_count || '-'}`, margin + 50, infoY)
+      pdf.text(`${t('parcels.generated')}: ${new Date().toLocaleDateString()}`, margin + 110, infoY)
 
       // Map area dimensions
       const mapAreaWidth = pageWidth - margin * 2 - 75
@@ -528,10 +673,12 @@ function Parcels() {
         }
       }
 
-      // Draw variety trees with unique symbols
+      // Draw variety trees with unique symbols and initials
       varietyTrees.forEach(({ coords, varietyIdx }) => {
         const color = VARIETY_COLORS[varietyIdx % VARIETY_COLORS.length]
         const rgb = hexToRgb(color)
+        const variety = selectedParcel.varieties[varietyIdx]
+        const initials = getVarietyInitials(variety?.cultivar || '')
         
         pdf.setFillColor(rgb.r, rgb.g, rgb.b)
         pdf.setDrawColor(255, 255, 255)
@@ -539,8 +686,12 @@ function Parcels() {
 
         coords.forEach(coord => {
           const pos = geoToPdf(coord[0], coord[1])
-          const symbolSize = 1.5
+          const symbolSize = 3 // Increased from 1.5 to 3mm for better visibility
 
+          // Ensure fill color is set before drawing each symbol
+          pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+          pdf.setDrawColor(255, 255, 255)
+          
           switch (varietyIdx % 6) {
             case 0: // Circle
               pdf.circle(pos.x, pos.y, symbolSize, 'FD')
@@ -548,7 +699,7 @@ function Parcels() {
             case 1: // Square
               pdf.rect(pos.x - symbolSize, pos.y - symbolSize, symbolSize * 2, symbolSize * 2, 'FD')
               break
-            case 2: // Triangle
+            case 2: // Triangle (pointing up)
               pdf.triangle(
                 pos.x, pos.y - symbolSize * 1.2,
                 pos.x - symbolSize, pos.y + symbolSize * 0.8,
@@ -556,19 +707,47 @@ function Parcels() {
                 'FD'
               )
               break
-            case 3: // Diamond
-              pdf.triangle(pos.x, pos.y - symbolSize, pos.x - symbolSize, pos.y, pos.x, pos.y + symbolSize, 'F')
-              pdf.triangle(pos.x, pos.y - symbolSize, pos.x + symbolSize, pos.y, pos.x, pos.y + symbolSize, 'F')
+            case 3: // Diamond (two triangles)
+              pdf.triangle(pos.x, pos.y - symbolSize, pos.x - symbolSize, pos.y, pos.x, pos.y + symbolSize, 'FD')
+              pdf.setFillColor(rgb.r, rgb.g, rgb.b) // Reset color
+              pdf.triangle(pos.x, pos.y - symbolSize, pos.x + symbolSize, pos.y, pos.x, pos.y + symbolSize, 'FD')
               break
-            case 4: // Double circle
+            case 4: // Double circle (ring)
               pdf.circle(pos.x, pos.y, symbolSize * 1.2, 'FD')
               pdf.setFillColor(255, 255, 255)
               pdf.circle(pos.x, pos.y, symbolSize * 0.6, 'F')
               pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+              pdf.circle(pos.x, pos.y, symbolSize * 0.3, 'F')
               break
-            case 5: // Larger circle
-              pdf.circle(pos.x, pos.y, symbolSize * 1.1, 'FD')
+            case 5: // Hexagon
+              pdf.triangle(pos.x - symbolSize, pos.y, pos.x - symbolSize * 0.5, pos.y - symbolSize * 0.9, pos.x + symbolSize * 0.5, pos.y - symbolSize * 0.9, 'FD')
+              pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+              pdf.triangle(pos.x - symbolSize, pos.y, pos.x + symbolSize * 0.5, pos.y - symbolSize * 0.9, pos.x + symbolSize, pos.y, 'FD')
+              pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+              pdf.triangle(pos.x - symbolSize, pos.y, pos.x + symbolSize, pos.y, pos.x + symbolSize * 0.5, pos.y + symbolSize * 0.9, 'FD')
+              pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+              pdf.triangle(pos.x - symbolSize, pos.y, pos.x + symbolSize * 0.5, pos.y + symbolSize * 0.9, pos.x - symbolSize * 0.5, pos.y + symbolSize * 0.9, 'FD')
               break
+          }
+
+          // Add initials on top of symbol with semi-transparent background
+          if (initials) {
+            // Draw semi-transparent background (scaled with symbol)
+            const bgWidth = symbolSize * 1.6
+            const bgHeight = symbolSize * 1.1
+            pdf.setFillColor(51, 51, 51) // #333
+            pdf.setGState(pdf.GState({ opacity: 0.65 }))
+            pdf.roundedRect(pos.x - bgWidth/2, pos.y - bgHeight/2, bgWidth, bgHeight, 0.3, 0.3, 'F')
+            pdf.setGState(pdf.GState({ opacity: 1.0 }))
+            
+            // Draw initials text (increased from 2.5 to 6)
+            pdf.setFontSize(6)
+            pdf.setFont('helvetica', 'bold')
+            pdf.setTextColor(255, 255, 255)
+            const textWidth = pdf.getTextWidth(initials)
+            pdf.text(initials, pos.x - textWidth / 2, pos.y + 1)
+            pdf.setTextColor(0, 0, 0)
+            pdf.setFont('helvetica', 'normal')
           }
         })
       })
@@ -578,89 +757,9 @@ function Parcels() {
       pdf.setLineWidth(0.5)
       pdf.rect(mapAreaX, mapAreaY, mapAreaWidth, mapAreaHeight)
 
-      // Add legend on the right side
-      const legendX = mapAreaX + mapAreaWidth + 8
-      const legendY = mapAreaY
-
-      // Legend title
-      pdf.setFontSize(12)
-      pdf.setFont('helvetica', 'bold')
-      pdf.text('Legenda', legendX, legendY + 5)
-
-      pdf.setFontSize(9)
-      pdf.setFont('helvetica', 'normal')
-      let currentY = legendY + 15
-
-      // Draw parcel boundary symbol in legend
-      pdf.setDrawColor(34, 85, 51)
-      pdf.setFillColor(220, 237, 220)
-      pdf.setLineWidth(1.5)
-      pdf.rect(legendX, currentY - 3, 12, 8, 'FD')
-      pdf.text('Confine Parcella', legendX + 16, currentY + 2)
-      currentY += 14
-
-      // Varieties section
-      if (selectedParcel.varieties && selectedParcel.varieties.length > 0) {
-        pdf.setFont('helvetica', 'bold')
-        pdf.text('Varietà:', legendX, currentY)
-        currentY += 10
-
-        pdf.setFont('helvetica', 'normal')
-        selectedParcel.varieties.forEach((variety: any, idx: number) => {
-          const color = VARIETY_COLORS[idx % VARIETY_COLORS.length]
-          const rgb = hexToRgb(color)
-          const treeCount = variety.geojson ? getTreeCount(variety.geojson) : 0
-
-          pdf.setFillColor(rgb.r, rgb.g, rgb.b)
-          pdf.setDrawColor(255, 255, 255)
-          pdf.setLineWidth(0.3)
-
-          const symbolX = legendX + 5
-          const symbolY = currentY
-
-          switch (idx % 6) {
-            case 0: // Circle
-              pdf.circle(symbolX, symbolY, 3, 'FD')
-              break
-            case 1: // Square
-              pdf.rect(symbolX - 3, symbolY - 3, 6, 6, 'FD')
-              break
-            case 2: // Triangle
-              pdf.triangle(symbolX, symbolY - 3, symbolX - 3, symbolY + 2, symbolX + 3, symbolY + 2, 'FD')
-              break
-            case 3: // Diamond
-              pdf.triangle(symbolX, symbolY - 3, symbolX - 3, symbolY, symbolX, symbolY + 3, 'F')
-              pdf.triangle(symbolX, symbolY - 3, symbolX + 3, symbolY, symbolX, symbolY + 3, 'F')
-              break
-            case 4: // Double circle
-              pdf.circle(symbolX, symbolY, 4, 'FD')
-              pdf.setFillColor(255, 255, 255)
-              pdf.circle(symbolX, symbolY, 2, 'F')
-              pdf.setFillColor(rgb.r, rgb.g, rgb.b)
-              pdf.circle(symbolX, symbolY, 1.5, 'F')
-              break
-            case 5: // Larger circle
-              pdf.circle(symbolX, symbolY, 3.5, 'FD')
-              break
-          }
-
-          const varietyName = variety.cultivar || `Varietà ${idx + 1}`
-          pdf.text(varietyName, legendX + 12, currentY + 1)
-          pdf.setFontSize(7)
-          pdf.setTextColor(100, 100, 100)
-          pdf.text(`(${treeCount} alberi)`, legendX + 12, currentY + 5)
-          pdf.setFontSize(9)
-          pdf.setTextColor(0, 0, 0)
-
-          currentY += 14
-        })
-      } else {
-        pdf.text('Nessuna varietà registrata', legendX, currentY)
-      }
-
-      // Add scale indicator
-      const scaleBarY = mapAreaY + mapAreaHeight - 8
-      const scaleBarX = mapAreaX + 5
+      // Add scale indicator on the map (bottom left corner)
+      const scaleBarY = mapAreaY + mapAreaHeight - 10
+      const scaleBarX = mapAreaX + 10
       
       // Calculate scale using center latitude for better accuracy
       const centerLat = (minLat + maxLat) / 2
@@ -672,7 +771,7 @@ function Parcels() {
       const metersPerMm = realWorldWidthMeters / scaledWidth
       
       // Choose a nice round number for scale bar
-      const rawDistance = metersPerMm * 30 // approximate distance for 30mm bar
+      const rawDistance = metersPerMm * 40 // approximate distance for 40mm bar
       let niceDistance: number
       let scaleBarWidth: number
       
@@ -687,20 +786,36 @@ function Parcels() {
       // Calculate actual bar width for the nice distance
       scaleBarWidth = niceDistance / metersPerMm
       
-      // Draw scale bar
-      pdf.setDrawColor(50, 50, 50)
+      // Draw scale bar with improved visibility
+      pdf.setDrawColor(0, 0, 0)
       pdf.setFillColor(255, 255, 255)
-      pdf.setLineWidth(0.5)
+      pdf.setLineWidth(0.8)
       
-      // Background rectangle for visibility
-      pdf.rect(scaleBarX - 2, scaleBarY - 6, scaleBarWidth + 4, 14, 'F')
+      // White background rectangle for visibility with border
+      pdf.rect(scaleBarX - 3, scaleBarY - 8, scaleBarWidth + 6, 16, 'FD')
       
-      // Scale bar line
-      pdf.setLineWidth(1)
+      // Scale bar line (black and white segments for better visibility)
+      pdf.setLineWidth(3)
+      pdf.setDrawColor(0, 0, 0)
       pdf.line(scaleBarX, scaleBarY, scaleBarX + scaleBarWidth, scaleBarY)
+      
+      // Alternating black and white segments
+      const segments = 4
+      const segmentWidth = scaleBarWidth / segments
+      for (let i = 0; i < segments; i++) {
+        if (i % 2 === 0) {
+          pdf.setFillColor(0, 0, 0)
+        } else {
+          pdf.setFillColor(255, 255, 255)
+        }
+        pdf.rect(scaleBarX + i * segmentWidth, scaleBarY - 1.5, segmentWidth, 3, 'F')
+      }
+      
       // End caps
-      pdf.line(scaleBarX, scaleBarY - 3, scaleBarX, scaleBarY + 3)
-      pdf.line(scaleBarX + scaleBarWidth, scaleBarY - 3, scaleBarX + scaleBarWidth, scaleBarY + 3)
+      pdf.setLineWidth(1.5)
+      pdf.setDrawColor(0, 0, 0)
+      pdf.line(scaleBarX, scaleBarY - 4, scaleBarX, scaleBarY + 4)
+      pdf.line(scaleBarX + scaleBarWidth, scaleBarY - 4, scaleBarX + scaleBarWidth, scaleBarY + 4)
       
       // Format distance text
       let distanceText: string
@@ -710,11 +825,271 @@ function Parcels() {
         distanceText = `${niceDistance} m`
       }
       
-      pdf.setFontSize(8)
-      pdf.setTextColor(50, 50, 50)
-      const textWidth = pdf.getTextWidth(distanceText)
-      pdf.text(distanceText, scaleBarX + scaleBarWidth / 2 - textWidth / 2, scaleBarY + 6)
+      pdf.setFontSize(9)
+      pdf.setFont('helvetica', 'bold')
       pdf.setTextColor(0, 0, 0)
+      const scaleTextWidth = pdf.getTextWidth(distanceText)
+      pdf.text(distanceText, scaleBarX + scaleBarWidth / 2 - scaleTextWidth / 2, scaleBarY + 7)
+      pdf.setFont('helvetica', 'normal')
+
+      // Add legend on the right side
+      const legendX = mapAreaX + mapAreaWidth + 8
+      const legendY = mapAreaY
+
+      // Legend title
+      pdf.setFontSize(12)
+      pdf.setFont('helvetica', 'bold')
+      pdf.text(t('parcels.legend'), legendX, legendY + 5)
+
+      pdf.setFontSize(9)
+      pdf.setFont('helvetica', 'normal')
+      let currentY = legendY + 15
+
+      // Draw parcel boundary symbol in legend
+      pdf.setDrawColor(34, 85, 51)
+      pdf.setFillColor(220, 237, 220)
+      pdf.setLineWidth(1.5)
+      pdf.rect(legendX, currentY - 3, 12, 8, 'FD')
+      pdf.text(t('parcels.parcel_boundary'), legendX + 16, currentY + 2)
+      currentY += 14
+
+      // Varieties section with multi-column layout and pagination support
+      if (selectedParcel.varieties && selectedParcel.varieties.length > 0) {
+        const varieties = selectedParcel.varieties
+        const varietyHeight = 14 // Height per variety entry
+        const maxEntriesInSidebar = Math.floor((pageHeight - currentY - 10) / varietyHeight)
+        
+        // Check if we need to create a separate legend page
+        const needsSeparatePage = varieties.length > maxEntriesInSidebar
+        
+        if (needsSeparatePage) {
+          // Add reference on first page
+          pdf.setFont('helvetica', 'bold')
+          pdf.text(`${t('parcels.variety')}:`, legendX, currentY)
+          pdf.setFont('helvetica', 'italic')
+          pdf.setFontSize(8)
+          pdf.text('(vedi pagina successiva)', legendX, currentY + 5)
+          
+          // Create new page for legend
+          pdf.addPage()
+          pdf.setFontSize(16)
+          pdf.setFont('helvetica', 'bold')
+          pdf.text(`${t('parcels.variety_legend')} - ${selectedParcel.name}`, margin, margin + 5)
+          
+          // Calculate columns layout
+          const columnWidth = 90
+          const columnsPerPage = Math.floor((pageWidth - margin * 2) / columnWidth)
+          const entriesPerColumn = Math.floor((pageHeight - margin * 2 - 20) / varietyHeight)
+          
+          let currentColumn = 0
+          let currentRow = 0
+          let currentPageY = margin + 15
+          
+          pdf.setFontSize(9)
+          pdf.setFont('helvetica', 'normal')
+          
+          varieties.forEach((variety: any, idx: number) => {
+            // Check if we need a new page
+            if (currentRow >= entriesPerColumn) {
+              currentRow = 0
+              currentColumn++
+              
+              if (currentColumn >= columnsPerPage) {
+                pdf.addPage()
+                currentColumn = 0
+                currentPageY = margin + 15
+              }
+            }
+            
+            const columnX = margin + currentColumn * columnWidth
+            const entryY = currentPageY + currentRow * varietyHeight
+            
+            // Draw symbol with initials
+            const color = VARIETY_COLORS[idx % VARIETY_COLORS.length]
+            const rgb = hexToRgb(color)
+            const initials = getVarietyInitials(variety.cultivar || '')
+            const treeCount = variety.geojson ? getTreeCount(variety.geojson) : 0
+
+            pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+            pdf.setDrawColor(255, 255, 255)
+            pdf.setLineWidth(0.3)
+
+            const symbolX = columnX + 5
+            const symbolY = entryY
+            const legendSymbolSize = 4 // Larger for visibility
+
+            // Ensure colors are set before drawing
+            pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+            pdf.setDrawColor(255, 255, 255)
+
+            switch (idx % 6) {
+              case 0: // Circle
+                pdf.circle(symbolX, symbolY, legendSymbolSize, 'FD')
+                break
+              case 1: // Square
+                pdf.rect(symbolX - legendSymbolSize, symbolY - legendSymbolSize, legendSymbolSize * 2, legendSymbolSize * 2, 'FD')
+                break
+              case 2: // Triangle
+                pdf.triangle(
+                  symbolX, symbolY - legendSymbolSize * 1.2,
+                  symbolX - legendSymbolSize, symbolY + legendSymbolSize * 0.8,
+                  symbolX + legendSymbolSize, symbolY + legendSymbolSize * 0.8,
+                  'FD'
+                )
+                break
+              case 3: // Diamond
+                pdf.triangle(symbolX, symbolY - legendSymbolSize, symbolX - legendSymbolSize, symbolY, symbolX, symbolY + legendSymbolSize, 'FD')
+                pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+                pdf.triangle(symbolX, symbolY - legendSymbolSize, symbolX + legendSymbolSize, symbolY, symbolX, symbolY + legendSymbolSize, 'FD')
+                break
+              case 4: // Double circle (ring)
+                pdf.circle(symbolX, symbolY, legendSymbolSize * 1.2, 'FD')
+                pdf.setFillColor(255, 255, 255)
+                pdf.circle(symbolX, symbolY, legendSymbolSize * 0.6, 'F')
+                pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+                pdf.circle(symbolX, symbolY, legendSymbolSize * 0.3, 'F')
+                break
+              case 5: // Hexagon (using triangles)
+                pdf.triangle(symbolX - legendSymbolSize, symbolY, symbolX - legendSymbolSize * 0.5, symbolY - legendSymbolSize * 0.9, symbolX + legendSymbolSize * 0.5, symbolY - legendSymbolSize * 0.9, 'FD')
+                pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+                pdf.triangle(symbolX - legendSymbolSize, symbolY, symbolX + legendSymbolSize * 0.5, symbolY - legendSymbolSize * 0.9, symbolX + legendSymbolSize, symbolY, 'FD')
+                pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+                pdf.triangle(symbolX - legendSymbolSize, symbolY, symbolX + legendSymbolSize, symbolY, symbolX + legendSymbolSize * 0.5, symbolY + legendSymbolSize * 0.9, 'FD')
+                pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+                pdf.triangle(symbolX - legendSymbolSize, symbolY, symbolX + legendSymbolSize * 0.5, symbolY + legendSymbolSize * 0.9, symbolX - legendSymbolSize * 0.5, symbolY + legendSymbolSize * 0.9, 'FD')
+                break
+            }
+
+            // Add initials with semi-transparent background
+            if (initials) {
+              const bgW = legendSymbolSize * 1.8
+              const bgH = legendSymbolSize * 1.2
+              pdf.setFillColor(51, 51, 51)
+              pdf.setGState(pdf.GState({ opacity: 0.65 }))
+              pdf.roundedRect(symbolX - bgW/2, symbolY - bgH/2, bgW, bgH, 0.4, 0.4, 'F')
+              pdf.setGState(pdf.GState({ opacity: 1.0 }))
+              
+              pdf.setFontSize(6)
+              pdf.setFont('helvetica', 'bold')
+              pdf.setTextColor(255, 255, 255)
+              const textWidth = pdf.getTextWidth(initials)
+              pdf.text(initials, symbolX - textWidth / 2, symbolY + 1)
+              pdf.setTextColor(0, 0, 0)
+              pdf.setFont('helvetica', 'normal')
+              pdf.setFontSize(9)
+            }
+
+            // Add variety name and tree count
+            const varietyName = variety.cultivar || `${t('parcels.variety')} ${idx + 1}`
+            pdf.text(varietyName, columnX + 12, entryY + 1)
+            pdf.setFontSize(7)
+            pdf.setTextColor(100, 100, 100)
+            pdf.text(`(${treeCount} ${t('parcels.tree_count')})`, columnX + 12, entryY + 5)
+            pdf.setFontSize(9)
+            pdf.setTextColor(0, 0, 0)
+
+            currentRow++
+          })
+        } else {
+          // Fit in sidebar - original single column layout
+          pdf.setFont('helvetica', 'bold')
+          pdf.text(`${t('parcels.variety')}:`, legendX, currentY)
+          currentY += 10
+
+          pdf.setFont('helvetica', 'normal')
+          varieties.forEach((variety: any, idx: number) => {
+            const color = VARIETY_COLORS[idx % VARIETY_COLORS.length]
+            const rgb = hexToRgb(color)
+            const initials = getVarietyInitials(variety.cultivar || '')
+            const treeCount = variety.geojson ? getTreeCount(variety.geojson) : 0
+
+            pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+            pdf.setDrawColor(255, 255, 255)
+            pdf.setLineWidth(0.3)
+
+            const symbolX = legendX + 5
+            const symbolY = currentY
+            const legendSymbolSize = 4 // Larger for visibility
+
+            // Ensure colors are set before drawing
+            pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+            pdf.setDrawColor(255, 255, 255)
+
+            switch (idx % 6) {
+              case 0: // Circle
+                pdf.circle(symbolX, symbolY, legendSymbolSize, 'FD')
+                break
+              case 1: // Square
+                pdf.rect(symbolX - legendSymbolSize, symbolY - legendSymbolSize, legendSymbolSize * 2, legendSymbolSize * 2, 'FD')
+                break
+              case 2: // Triangle
+                pdf.triangle(
+                  symbolX, symbolY - legendSymbolSize * 1.2,
+                  symbolX - legendSymbolSize, symbolY + legendSymbolSize * 0.8,
+                  symbolX + legendSymbolSize, symbolY + legendSymbolSize * 0.8,
+                  'FD'
+                )
+                break
+              case 3: // Diamond
+                pdf.triangle(symbolX, symbolY - legendSymbolSize, symbolX - legendSymbolSize, symbolY, symbolX, symbolY + legendSymbolSize, 'FD')
+                pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+                pdf.triangle(symbolX, symbolY - legendSymbolSize, symbolX + legendSymbolSize, symbolY, symbolX, symbolY + legendSymbolSize, 'FD')
+                break
+              case 4: // Double circle (ring)
+                pdf.circle(symbolX, symbolY, legendSymbolSize * 1.2, 'FD')
+                pdf.setFillColor(255, 255, 255)
+                pdf.circle(symbolX, symbolY, legendSymbolSize * 0.6, 'F')
+                pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+                pdf.circle(symbolX, symbolY, legendSymbolSize * 0.3, 'F')
+                break
+              case 5: // Hexagon (using triangles)
+                pdf.triangle(symbolX - legendSymbolSize, symbolY, symbolX - legendSymbolSize * 0.5, symbolY - legendSymbolSize * 0.9, symbolX + legendSymbolSize * 0.5, symbolY - legendSymbolSize * 0.9, 'FD')
+                pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+                pdf.triangle(symbolX - legendSymbolSize, symbolY, symbolX + legendSymbolSize * 0.5, symbolY - legendSymbolSize * 0.9, symbolX + legendSymbolSize, symbolY, 'FD')
+                pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+                pdf.triangle(symbolX - legendSymbolSize, symbolY, symbolX + legendSymbolSize, symbolY, symbolX + legendSymbolSize * 0.5, symbolY + legendSymbolSize * 0.9, 'FD')
+                pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+                pdf.triangle(symbolX - legendSymbolSize, symbolY, symbolX + legendSymbolSize * 0.5, symbolY + legendSymbolSize * 0.9, symbolX - legendSymbolSize * 0.5, symbolY + legendSymbolSize * 0.9, 'FD')
+                break
+            }
+
+            // Add initials with semi-transparent background
+            if (initials) {
+              const bgW = legendSymbolSize * 1.8
+              const bgH = legendSymbolSize * 1.2
+              pdf.setFillColor(51, 51, 51)
+              pdf.setGState(pdf.GState({ opacity: 0.65 }))
+              pdf.roundedRect(symbolX - bgW/2, symbolY - bgH/2, bgW, bgH, 0.4, 0.4, 'F')
+              pdf.setGState(pdf.GState({ opacity: 1.0 }))
+              
+              pdf.setFontSize(6)
+              pdf.setFont('helvetica', 'bold')
+              pdf.setTextColor(255, 255, 255)
+              const textWidth = pdf.getTextWidth(initials)
+              pdf.text(initials, symbolX - textWidth / 2, symbolY + 1)
+              pdf.setTextColor(0, 0, 0)
+              pdf.setFont('helvetica', 'normal')
+              pdf.setFontSize(9)
+            }
+
+            // Reset colors after initials to ensure proper symbol colors
+            pdf.setFillColor(rgb.r, rgb.g, rgb.b)
+            pdf.setDrawColor(255, 255, 255)
+
+            const varietyName = variety.cultivar || `${t('parcels.variety')} ${idx + 1}`
+            pdf.text(varietyName, legendX + 12, currentY + 1)
+            pdf.setFontSize(7)
+            pdf.setTextColor(100, 100, 100)
+            pdf.text(`(${treeCount} ${t('parcels.tree_count')})`, legendX + 12, currentY + 5)
+            pdf.setFontSize(9)
+            pdf.setTextColor(0, 0, 0)
+
+            currentY += 14
+          })
+        }
+      } else {
+        pdf.text(t('parcels.no_varieties_recorded'), legendX, currentY)
+      }
 
       // Save the PDF
       pdf.save(`${selectedParcel.name.replace(/\s+/g, '_')}_mappa_parcella.pdf`)
@@ -847,6 +1222,7 @@ function Parcels() {
         setSelectedParcel(updatedParcel)
         setIsEditing(false)
         setDrawingVarietyIndex(null) // Reset drawing mode
+        setDeletingPlantIndex(null) // Reset deleting mode
       } else {
         const errorText = await response.text()
         toast.error('Failed to update parcel: ' + errorText)
@@ -919,6 +1295,17 @@ function Parcels() {
       setDrawingVarietyIndex(null)
     } else {
       setDrawingVarietyIndex(index)
+      setDeletingPlantIndex(null) // Exit delete mode when entering draw mode
+    }
+  }
+
+  const startDeletingPlants = (index: number) => {
+    // Toggle delete mode - if already deleting for this variety, exit
+    if (deletingPlantIndex === index) {
+      setDeletingPlantIndex(null)
+    } else {
+      setDeletingPlantIndex(index)
+      setDrawingVarietyIndex(null) // Exit draw mode when entering delete mode
     }
   }
 
@@ -1034,6 +1421,126 @@ function Parcels() {
     setEditVarieties(newVarieties)
   }
 
+  const removePlantPoint = useCallback((varietyIndex: number, geometryIndex: number) => {
+    setEditVarieties(prevVarieties => {
+      const newVarieties = [...prevVarieties]
+      const currentVariety = newVarieties[varietyIndex]
+      
+      if (!currentVariety.geojson) return newVarieties
+
+      const existingGeojson = typeof currentVariety.geojson === 'string'
+        ? JSON.parse(currentVariety.geojson)
+        : currentVariety.geojson
+
+      if (existingGeojson.type === 'Point') {
+        // Single point - remove it completely
+        newVarieties[varietyIndex] = {
+          ...currentVariety,
+          geojson: null
+        }
+      } else if (existingGeojson.type === 'GeometryCollection') {
+        // Remove the point at the specific geometry index
+        const updatedGeometries = existingGeojson.geometries.filter((geom: any, idx: number) => {
+          // Keep all geometries except the Point at geometryIndex
+          return !(idx === geometryIndex && geom.type === 'Point')
+        })
+        
+        // If no geometries left, set to null, otherwise update
+        if (updatedGeometries.length === 0) {
+          newVarieties[varietyIndex] = {
+            ...currentVariety,
+            geojson: null
+          }
+        } else if (updatedGeometries.length === 1) {
+          // If only one geometry left, simplify to that geometry
+          newVarieties[varietyIndex] = {
+            ...currentVariety,
+            geojson: updatedGeometries[0]
+          }
+        } else {
+          newVarieties[varietyIndex] = {
+            ...currentVariety,
+            geojson: {
+              type: 'GeometryCollection',
+              geometries: updatedGeometries
+            }
+          }
+        }
+      }
+
+      return newVarieties
+    })
+  }, [])
+
+  const handleMarkerDragEnd = useCallback((varietyIndex: number, geometryIndex: number, newLatLng: L.LatLng) => {
+    // Validate that the new position is inside the parcel boundary
+    if (selectedParcel && selectedParcel.geojson) {
+      try {
+        const parcelGeojson = typeof selectedParcel.geojson === 'string'
+          ? JSON.parse(selectedParcel.geojson)
+          : selectedParcel.geojson
+
+        // Extract polygon coordinates from GeoJSON
+        let isInside = false
+        if (parcelGeojson.type === 'Polygon') {
+          const coords = parcelGeojson.coordinates[0] // Outer ring
+          const polygonLatLngs = coords.map((c: number[]) => L.latLng(c[1], c[0]))
+          isInside = isPointInPolygon(newLatLng, polygonLatLngs)
+        }
+
+        if (!isInside) {
+          toast.error('Trees can only be placed inside the parcel boundary')
+          return
+        }
+      } catch (e) {
+        console.error('Error validating point location:', e)
+      }
+    }
+
+    // Update the specific point in the variety geometry
+    setEditVarieties(prevVarieties => {
+      const newVarieties = [...prevVarieties]
+      const currentVariety = newVarieties[varietyIndex]
+      
+      if (!currentVariety.geojson) return newVarieties
+
+      const existingGeojson = typeof currentVariety.geojson === 'string'
+        ? JSON.parse(currentVariety.geojson)
+        : currentVariety.geojson
+
+      const updatedPoint = {
+        type: 'Point',
+        coordinates: [newLatLng.lng, newLatLng.lat]
+      }
+
+      if (existingGeojson.type === 'Point') {
+        // Single point - replace it
+        newVarieties[varietyIndex] = {
+          ...currentVariety,
+          geojson: updatedPoint
+        }
+      } else if (existingGeojson.type === 'GeometryCollection') {
+        // Update the point at the specific geometry index
+        const updatedGeometries = existingGeojson.geometries.map((geom: any, idx: number) => {
+          if (idx === geometryIndex && geom.type === 'Point') {
+            return updatedPoint
+          }
+          return geom
+        })
+        
+        newVarieties[varietyIndex] = {
+          ...currentVariety,
+          geojson: {
+            type: 'GeometryCollection',
+            geometries: updatedGeometries
+          }
+        }
+      }
+
+      return newVarieties
+    })
+  }, [selectedParcel])
+
   const getTreeCount = (geojson: any) => {
     if (!geojson) return 0
     const parsed = typeof geojson === 'string' ? JSON.parse(geojson) : geojson
@@ -1054,17 +1561,43 @@ function Parcels() {
   useEffect(() => {
     if (!isResizing) return
 
+    let rafId: number | null = null
+    let pendingWidth: number | null = null
+
     const handleMouseMove = (e: MouseEvent) => {
       const newWidth = window.innerWidth - e.clientX
       // Clamp between 320px and 600px
-      setSidebarWidth(Math.min(600, Math.max(320, newWidth)))
+      const clampedWidth = Math.min(600, Math.max(320, newWidth))
+      
+      // Store pending width
+      pendingWidth = clampedWidth
+
+      // Use requestAnimationFrame to batch DOM updates and reduce forced reflows
+      if (rafId === null) {
+        rafId = requestAnimationFrame(() => {
+          if (pendingWidth !== null) {
+            setSidebarWidth(pendingWidth)
+            pendingWidth = null
+          }
+          rafId = null
+        })
+      }
     }
 
     const handleMouseUp = () => {
+      // Apply any pending width update before stopping
+      if (pendingWidth !== null) {
+        setSidebarWidth(pendingWidth)
+        pendingWidth = null
+      }
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+        rafId = null
+      }
       setIsResizing(false)
     }
 
-    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mousemove', handleMouseMove, { passive: true })
     document.addEventListener('mouseup', handleMouseUp)
     // Set cursor globally during resize
     document.body.style.cursor = 'col-resize'
@@ -1075,6 +1608,9 @@ function Parcels() {
       document.removeEventListener('mouseup', handleMouseUp)
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+      }
     }
   }, [isResizing])
 
@@ -1326,10 +1862,9 @@ function Parcels() {
                           const uniqueKey = `variety-${variety.ID || vIdx}-trees-${treeCount}-hl-${highlightedVarietyIndex}`
 
                           // Create variety icon with unique symbol
-                          const varietyIcon = createVarietyIcon(vIdx)
+                          const varietyIcon = createVarietyIcon(vIdx, variety.cultivar)
                           
-                          // Scale and opacity based on highlight state
-                          const scale = isHighlighted ? 1.3 : (isDimmed ? 0.7 : 1)
+                          // Only use opacity for highlighting/dimming - no scaling to avoid zoom issues
                           const opacity = isDimmed ? 0.4 : 1
 
                           return (
@@ -1341,16 +1876,13 @@ function Parcels() {
                                   icon: varietyIcon,
                                   opacity: opacity
                                 })
-                                // Apply scale transform for highlighting
-                                if (scale !== 1) {
-                                  marker.on('add', () => {
-                                    const el = marker.getElement()
-                                    if (el) {
-                                      el.style.transform = el.style.transform + ` scale(${scale})`
-                                      el.style.zIndex = isHighlighted ? '1000' : '100'
-                                    }
-                                  })
-                                }
+                                // Set z-index for highlighting without scaling
+                                marker.on('add', () => {
+                                  const el = marker.getElement()
+                                  if (el) {
+                                    el.style.zIndex = isHighlighted ? '1000' : '100'
+                                  }
+                                })
                                 return marker
                               }}
                               style={() => ({
@@ -1372,6 +1904,12 @@ function Parcels() {
                     {/* Render edit-mode variety geometries */}
                     {isEditing && selectedParcel?.ID === parcel.ID && editVarieties.map((variety: any, vIdx: number) => {
                       const color = VARIETY_COLORS[vIdx % VARIETY_COLORS.length]
+                      
+                      // Determine selection state (similar to highlight state in normal view)
+                      // Include both drawing mode and delete mode
+                      const isSelected = drawingVarietyIndex === vIdx || deletingPlantIndex === vIdx
+                      const hasSelection = drawingVarietyIndex !== null || deletingPlantIndex !== null
+                      const isDimmed = hasSelection && !isSelected
 
                       // Create a unique key that changes when geometry is cleared
                       const treeCount = variety.geojson ? getTreeCount(variety.geojson) : 0
@@ -1390,22 +1928,78 @@ function Parcels() {
                           : variety.geojson
 
                         // Create variety icon with unique symbol
-                        const varietyIcon = createVarietyIcon(vIdx)
+                        const varietyIcon = createVarietyIcon(vIdx, variety.cultivar)
+                        
+                        // Only use opacity for selection/dimming - no scaling to avoid zoom issues
+                        const opacity = isDimmed ? 0.4 : 1
+
+                        // Extract points with their actual indices in GeometryCollection
+                        const points: Array<{ latlng: L.LatLng, geometryIndex: number }> = []
+                        
+                        if (varietyGeojson.type === 'Point') {
+                          points.push({
+                            latlng: L.latLng(varietyGeojson.coordinates[1], varietyGeojson.coordinates[0]),
+                            geometryIndex: 0
+                          })
+                        } else if (varietyGeojson.type === 'GeometryCollection') {
+                          varietyGeojson.geometries.forEach((geom: any, idx: number) => {
+                            if (geom.type === 'Point') {
+                              points.push({
+                                latlng: L.latLng(geom.coordinates[1], geom.coordinates[0]),
+                                geometryIndex: idx
+                              })
+                            }
+                          })
+                        }
 
                         return (
-                          <GeoJSON
-                            key={uniqueKey}
-                            data={varietyGeojson}
-                            pointToLayer={(_feature, latlng) => {
-                              return L.marker(latlng, { icon: varietyIcon })
-                            }}
-                            style={() => ({
-                              color: color,
-                              fillColor: color,
-                              fillOpacity: 0.3,
-                              weight: 2
+                          <React.Fragment key={uniqueKey}>
+                            {/* Render polygons if any */}
+                            {varietyGeojson.type === 'Polygon' && (
+                              <GeoJSON
+                                data={varietyGeojson}
+                                style={() => ({
+                                  color: color,
+                                  fillColor: color,
+                                  fillOpacity: isDimmed ? 0.1 : (isSelected ? 0.5 : 0.3),
+                                  weight: isSelected ? 3 : 2,
+                                  opacity: isDimmed ? 0.3 : 1
+                                })}
+                              />
+                            )}
+                            {varietyGeojson.type === 'GeometryCollection' && varietyGeojson.geometries.map((geom: any, idx: number) => {
+                              if (geom.type === 'Polygon') {
+                                return (
+                                  <GeoJSON
+                                    key={`polygon-${idx}`}
+                                    data={geom}
+                                    style={() => ({
+                                      color: color,
+                                      fillColor: color,
+                                      fillOpacity: isDimmed ? 0.1 : (isSelected ? 0.5 : 0.3),
+                                      weight: isSelected ? 3 : 2,
+                                      opacity: isDimmed ? 0.3 : 1
+                                    })}
+                                  />
+                                )
+                              }
+                              return null
                             })}
-                          />
+                            
+                            {/* Render draggable markers for points */}
+                            {points.map(({ latlng, geometryIndex }) => (
+                              <DraggableMarker
+                                key={`marker-${vIdx}-${geometryIndex}`}
+                                position={latlng}
+                                icon={varietyIcon}
+                                opacity={opacity}
+                                scale={1}
+                                zIndex={isSelected ? 1000 : 100}
+                                onDragEnd={(newLatLng) => handleMarkerDragEnd(vIdx, geometryIndex, newLatLng)}
+                                onRemove={deletingPlantIndex === vIdx ? () => removePlantPoint(vIdx, geometryIndex) : undefined}
+                              />
+                            ))}
+                          </React.Fragment>
                         )
                       } catch (e) {
                         console.error('Failed to parse edit variety GeoJSON', e)
@@ -1672,8 +2266,17 @@ function Parcels() {
                     </div>
 
                     <div className="space-y-3">
-                      {editVarieties.map((variety, idx) => (
-                        <div key={idx} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm text-xs hover:border-gray-300 transition-colors">
+                      {editVarieties.map((variety, idx) => {
+                        const isSelected = drawingVarietyIndex === idx
+                        return (
+                        <div 
+                          key={idx} 
+                          className={`bg-white p-3 rounded-lg border shadow-sm text-xs transition-colors ${
+                            isSelected 
+                              ? 'border-green-500 bg-green-50 shadow-md' 
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                        >
                           <div className="flex justify-between items-center mb-3">
                             <div className="flex items-center gap-2 flex-grow">
                               <span className="font-mono font-medium text-gray-400 bg-gray-50 px-1.5 rounded">#{idx + 1}</span>
@@ -1708,6 +2311,19 @@ function Parcels() {
                                   Done
                                 </button>
                               </div>
+                            ) : deletingPlantIndex === idx ? (
+                              <div className="flex items-center gap-2 w-full justify-between animate-pulse">
+                                <span className="text-xs text-red-700 flex items-center gap-1 font-medium">
+                                  <Trash2 size={12} />
+                                  Click plants to delete
+                                </span>
+                                <button
+                                  onClick={() => setDeletingPlantIndex(null)}
+                                  className="text-xs bg-red-500 text-white px-3 py-1.5 rounded-md hover:bg-red-600 font-medium shadow-sm"
+                                >
+                                  Done
+                                </button>
+                              </div>
                             ) : (
                               <div className="flex items-center gap-2 w-full justify-between">
                                 <button
@@ -1722,9 +2338,13 @@ function Parcels() {
                                       {getTreeCount(variety.geojson)} trees
                                     </span>
                                     <button
-                                      onClick={() => clearVarietyGeometry(idx)}
-                                      className="text-xs text-gray-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors"
-                                      title="Clear all trees"
+                                      onClick={() => startDeletingPlants(idx)}
+                                      className={`text-xs p-1 rounded transition-colors ${
+                                        deletingPlantIndex === idx
+                                          ? 'text-red-600 bg-red-100'
+                                          : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
+                                      }`}
+                                      title="Delete individual plants"
                                     >
                                       <Trash2 size={14} />
                                     </button>
@@ -1734,7 +2354,8 @@ function Parcels() {
                             )}
                           </div>
                         </div>
-                      ))}
+                        )
+                      })}
                       {editVarieties.length === 0 && (
                         <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
                           <TreeDeciduous className="mx-auto text-gray-300 mb-2" size={24} />
@@ -1761,6 +2382,7 @@ function Parcels() {
                         }
                         setIsEditing(false)
                         setDrawingVarietyIndex(null)
+                        setDeletingPlantIndex(null)
                       }}
                       className="flex-1 bg-white text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 border border-gray-300 shadow-sm transition-colors"
                     >

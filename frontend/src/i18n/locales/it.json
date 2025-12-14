@@ -156,7 +156,11 @@
     "poor": "Scarso",
     "moderate": "Moderato",
     "good": "Buono",
-    "excellent": "Eccellente"
+    "excellent": "Eccellente",
+    "generated": "Generato",
+    "variety": "Varietà",
+    "variety_legend": "Legenda Varietà",
+    "tree_count": "alberi"
   },
   "operations": {
     "title": "Registro Operazioni",
