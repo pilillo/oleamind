@@ -20,25 +20,25 @@ import (
 
 const (
 	// Mediterranean olive growing thresholds
-	OliveMinWinterTemp       = -10.0  // °C - absolute minimum
-	OliveOptMinWinterTemp    = 0.0    // °C - optimal minimum
-	OliveOptMaxSummerTemp    = 35.0   // °C - optimal maximum
-	OliveMaxSummerTemp       = 45.0   // °C - absolute maximum
-	OliveMinAnnualRainfall   = 200.0  // mm - absolute minimum (with irrigation)
-	OliveOptMinRainfall      = 400.0  // mm - optimal with some irrigation
-	OliveOptMaxRainfall      = 800.0  // mm - optimal range
-	OliveMinChillingHours    = 200    // hours < 7°C needed for flowering
-	OliveOptChillingHours    = 400    // hours < 7°C optimal
-	OliveGDDBase             = 10.0   // °C - base for Growing Degree Days
-	OliveGDDFlowering        = 1000   // GDD to reach flowering (approximate)
-	OliveGDDHarvest          = 2500   // GDD to reach harvest (approximate)
+	OliveMinWinterTemp     = -10.0 // °C - absolute minimum
+	OliveOptMinWinterTemp  = 0.0   // °C - optimal minimum
+	OliveOptMaxSummerTemp  = 35.0  // °C - optimal maximum
+	OliveMaxSummerTemp     = 45.0  // °C - absolute maximum
+	OliveMinAnnualRainfall = 200.0 // mm - absolute minimum (with irrigation)
+	OliveOptMinRainfall    = 400.0 // mm - optimal with some irrigation
+	OliveOptMaxRainfall    = 800.0 // mm - optimal range
+	OliveMinChillingHours  = 200   // hours < 7°C needed for flowering
+	OliveOptChillingHours  = 400   // hours < 7°C optimal
+	OliveGDDBase           = 10.0  // °C - base for Growing Degree Days
+	OliveGDDFlowering      = 1000  // GDD to reach flowering (approximate)
+	OliveGDDHarvest        = 2500  // GDD to reach harvest (approximate)
 
 	// Distance thresholds
-	CoastalDistanceKm        = 50.0   // km from sea = coastal climate
-	MountainousAltitude      = 400.0  // m altitude = mountainous
+	CoastalDistanceKm   = 50.0  // km from sea = coastal climate
+	MountainousAltitude = 400.0 // m altitude = mountainous
 
 	// Open-Meteo historical climate API
-	OpenMeteoHistoricalURL   = "https://archive-api.open-meteo.com/v1/archive"
+	OpenMeteoHistoricalURL = "https://archive-api.open-meteo.com/v1/archive"
 )
 
 type ClimateProfileService struct {
@@ -76,8 +76,9 @@ func (s *ClimateProfileService) GetOrCreateProfile(parcelID uint) (*models.Clima
 // createFromLocation creates profile using comprehensive geographic analysis
 func (s *ClimateProfileService) createFromLocation(parcelID uint) (*models.ClimateProfile, error) {
 	// Get parcel to extract coordinates from geometry
+	// Get parcel to extract coordinates from geometry
 	var parcel models.Parcel
-	if err := s.DB.First(&parcel, parcelID).Error; err != nil {
+	if err := s.DB.Select("*, ST_AsGeoJSON(geo_json) as geo_json").First(&parcel, parcelID).Error; err != nil {
 		return nil, fmt.Errorf("failed to fetch parcel: %w", err)
 	}
 
@@ -94,49 +95,49 @@ func (s *ClimateProfileService) createFromLocation(parcelID uint) (*models.Clima
 
 	now := time.Now()
 	profile := &models.ClimateProfile{
-		ParcelID:              parcelID,
-		Latitude:              location.Latitude,
-		Longitude:             location.Longitude,
-		Altitude:              location.Altitude,
-		DistanceToSea:         location.DistanceToSea,
-		ClimateType:           climate.KoppenCode,
-		IsCoastal:             location.DistanceToSea < CoastalDistanceKm,
-		IsMountainous:         location.Altitude > MountainousAltitude,
+		ParcelID:      parcelID,
+		Latitude:      location.Latitude,
+		Longitude:     location.Longitude,
+		Altitude:      location.Altitude,
+		DistanceToSea: location.DistanceToSea,
+		ClimateType:   climate.KoppenCode,
+		IsCoastal:     location.DistanceToSea < CoastalDistanceKm,
+		IsMountainous: location.Altitude > MountainousAltitude,
 
 		// Estimated temperature characteristics
-		AvgAnnualTemp:         &climate.EstAvgAnnualTemp,
-		AvgJanTemp:            &climate.EstAvgJanTemp,
-		AvgJulTemp:            &climate.EstAvgJulTemp,
-		AvgFrostDaysPerYear:   &climate.EstFrostDays,
-		AvgHotDaysPerYear:     &climate.EstHotDays,
+		AvgAnnualTemp:       &climate.EstAvgAnnualTemp,
+		AvgJanTemp:          &climate.EstAvgJanTemp,
+		AvgJulTemp:          &climate.EstAvgJulTemp,
+		AvgFrostDaysPerYear: &climate.EstFrostDays,
+		AvgHotDaysPerYear:   &climate.EstHotDays,
 
 		// Estimated GDD
-		AnnualGDD:             &climate.EstAnnualGDD,
+		AnnualGDD: &climate.EstAnnualGDD,
 
 		// Estimated precipitation
-		AnnualRainfall:        &climate.EstAnnualRainfall,
-		DryMonthsPerYear:      &climate.EstDryMonths,
+		AnnualRainfall:   &climate.EstAnnualRainfall,
+		DryMonthsPerYear: &climate.EstDryMonths,
 
 		// Dormancy period
-		DormancyStartMonth:    &climate.DormancyStart,
-		DormancyEndMonth:      &climate.DormancyEnd,
-		ChillingHours:         &climate.EstChillingHours,
+		DormancyStartMonth: &climate.DormancyStart,
+		DormancyEndMonth:   &climate.DormancyEnd,
+		ChillingHours:      &climate.EstChillingHours,
 
 		// Adjustment factors
-		IrrigationFactor:      climate.IrrigationFactor,
-		ETcMultiplier:         climate.ETcMultiplier,
-		PestPressureFactor:    climate.PestPressureFactor,
-		FrostRiskFactor:       climate.FrostRiskFactor,
+		IrrigationFactor:   climate.IrrigationFactor,
+		ETcMultiplier:      climate.ETcMultiplier,
+		PestPressureFactor: climate.PestPressureFactor,
+		FrostRiskFactor:    climate.FrostRiskFactor,
 
 		// Olive suitability
 		OliveSuitabilityScore: climate.OliveSuitability,
 		SuitabilityNotes:      climate.SuitabilityNotes,
 
 		// Metadata
-		DataSource:            "location_estimate",
-		DataPoints:            0,
-		LastCalculated:        &now,
-		ConfidenceScore:       0.4, // Location-based estimate has moderate confidence
+		DataSource:      "location_estimate",
+		DataPoints:      0,
+		LastCalculated:  &now,
+		ConfidenceScore: 0.4, // Location-based estimate has moderate confidence
 	}
 
 	if err := s.DB.Create(profile).Error; err != nil {
@@ -177,7 +178,7 @@ type LocationData struct {
 // extractLocationFromGeometry extracts full location data from parcel GeoJSON
 func extractLocationFromGeometry(geojson models.PostGISGeoJSON) LocationData {
 	location := LocationData{
-		Latitude:  40.0,  // Default to Central Mediterranean
+		Latitude:  40.0, // Default to Central Mediterranean
 		Longitude: 15.0,
 		Altitude:  100.0,
 	}
@@ -280,7 +281,7 @@ func extractLocationFromGeometry(geojson models.PostGISGeoJSON) LocationData {
 	if count > 0 {
 		lat := sumLat / float64(count)
 		lon := sumLon / float64(count)
-		
+
 		// Validate coordinate ranges
 		if lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180 {
 			location.Latitude = lat
@@ -299,36 +300,103 @@ func extractLocationFromGeometry(geojson models.PostGISGeoJSON) LocationData {
 
 // estimateDistanceToSea estimates distance to nearest sea based on coordinates
 // This is a simplified estimation for Mediterranean region
+// estimateDistanceToSea estimates distance to nearest sea based on coordinates
+// Uses a simplified vector-based coastline model for better accuracy than pure longitude
 func estimateDistanceToSea(lat, lon float64) float64 {
-	// Mediterranean coastline approximations (simplified)
-	// Italy: west coast ~10-15°E, east coast ~14-18°E
-	// Greece: varies widely
-	// This is a rough estimate - real implementation would use a coastline database
+	// Points defining the simplified coastline segments (approximate)
+	type Point struct{ Lat, Lon float64 }
 
-	absLat := math.Abs(lat)
+	// Major coastline segments for Italy
+	coastlineSegments := [][]Point{
+		// West (Tyrrhenian/Ligurian): Ventimiglia -> La Spezia -> Piombino -> Rome -> Naples -> Reggio Calabria
+		{{Lat: 43.79, Lon: 7.60}, {Lat: 44.10, Lon: 9.82}},   // Liguria
+		{{Lat: 44.10, Lon: 9.82}, {Lat: 42.92, Lon: 10.53}},  // Tuscany North
+		{{Lat: 42.92, Lon: 10.53}, {Lat: 41.89, Lon: 12.24}}, // Tuscany South - Lazio
+		{{Lat: 41.89, Lon: 12.24}, {Lat: 40.85, Lon: 14.26}}, // Lazio - Campania
+		{{Lat: 40.85, Lon: 14.26}, {Lat: 38.11, Lon: 15.65}}, // Campania - Calabria
 
-	// Mediterranean zone (30-45°N)
-	if absLat >= 30 && absLat <= 45 {
-		// Italy estimation
-		if lon >= 7 && lon <= 19 {
-			// Western Italy coast (Tyrrhenian)
-			distWest := math.Abs(lon-10.5) * 80 // ~80km per degree at this latitude
-			// Eastern Italy coast (Adriatic)
-			distEast := math.Abs(lon-16) * 80
-			return math.Min(distWest, distEast)
+		// East (Adriatic): Trieste -> Ancona -> Pescara -> Bari -> Otranto
+		{{Lat: 45.65, Lon: 13.78}, {Lat: 43.61, Lon: 13.50}}, // North Adriatic
+		{{Lat: 43.61, Lon: 13.50}, {Lat: 42.46, Lon: 14.21}}, // Central Adriatic
+		{{Lat: 42.46, Lon: 14.21}, {Lat: 41.11, Lon: 16.87}}, // South Adriatic (Puglia)
+		{{Lat: 41.11, Lon: 16.87}, {Lat: 40.14, Lon: 18.49}}, // Salento
+
+		// South (Ionian): Reggio Calabria -> Taranto -> Otranto
+		{{Lat: 38.11, Lon: 15.65}, {Lat: 39.47, Lon: 16.27}}, // Calabria Ionian
+		{{Lat: 39.47, Lon: 16.27}, {Lat: 40.47, Lon: 17.24}}, // Basilicata/Puglia
+		{{Lat: 40.47, Lon: 17.24}, {Lat: 40.14, Lon: 18.49}}, // Salento Inner
+
+		// Sicily (Simplified Triangle)
+		{{Lat: 38.18, Lon: 12.56}, {Lat: 38.25, Lon: 15.54}}, // North
+		{{Lat: 38.25, Lon: 15.54}, {Lat: 36.67, Lon: 15.11}}, // East
+		{{Lat: 36.67, Lon: 15.11}, {Lat: 38.18, Lon: 12.56}}, // South/West
+
+		// Sardinia (Simplified Box)
+		{{Lat: 40.92, Lon: 8.24}, {Lat: 41.25, Lon: 9.40}}, // North
+		{{Lat: 41.25, Lon: 9.40}, {Lat: 39.21, Lon: 9.11}}, // East
+		{{Lat: 39.21, Lon: 9.11}, {Lat: 38.94, Lon: 8.44}}, // South
+		{{Lat: 38.94, Lon: 8.44}, {Lat: 40.92, Lon: 8.24}}, // West
+	}
+
+	minDist := 1000.0
+
+	// Very rough Haversine approximation (1 deg lat ~ 111km, 1 deg lon varies)
+	const R = 6371.0 // Earth radius in km
+
+	toRadians := func(deg float64) float64 { return deg * math.Pi / 180 }
+
+	// Helper to calculate distance from point P to segment AB
+	distToSegment := func(latP, lonP float64, A, B Point) float64 {
+		// Convert to basic Cartesian approximation for short distances
+		// (Lat/Lon scaling is local)
+
+		midLat := (A.Lat + B.Lat) / 2.0
+		lonScale := math.Cos(toRadians(midLat))
+
+		x, y := lonP*lonScale, latP
+		x1, y1 := A.Lon*lonScale, A.Lat
+		x2, y2 := B.Lon*lonScale, B.Lat
+
+		var dx, dy float64
+
+		C := (x2-x1)*(x2-x1) + (y2-y1)*(y2-y1)
+		if C <= 0 {
+			dx = x - x1
+			dy = y - y1
+		} else {
+			// Project point onto line, clamped to segment
+			t := ((x-x1)*(x2-x1) + (y-y1)*(y2-y1)) / C
+			if t < 0 {
+				t = 0
+			}
+			if t > 1 {
+				t = 1
+			}
+
+			closestX := x1 + t*(x2-x1)
+			closestY := y1 + t*(y2-y1)
+
+			dx = x - closestX
+			dy = y - closestY
 		}
-		// Greece/Eastern Mediterranean
-		if lon >= 19 && lon <= 30 {
-			return math.Abs(lon-24) * 50 // Closer to coast on average
-		}
-		// Spain
-		if lon >= -10 && lon <= 3 {
-			return math.Min(math.Abs(lon-(-5))*80, math.Abs(lat-40)*100)
+
+		// Convert degrees back to km
+		return math.Sqrt(dx*dx+dy*dy) * 111.0
+	}
+
+	for _, segment := range coastlineSegments {
+		dist := distToSegment(lat, lon, segment[0], segment[1])
+		if dist < minDist {
+			minDist = dist
 		}
 	}
 
-	// Default: assume 100km from coast
-	return 100.0
+	// Default fallback for far away points
+	if minDist > 300 {
+		return 300
+	}
+
+	return minDist
 }
 
 // estimateAltitude estimates altitude based on coordinates
@@ -391,8 +459,9 @@ func (s *ClimateProfileService) UpdateFromWeatherHistory(parcelID uint) error {
 	}
 
 	// Get parcel to extract latitude for hemisphere detection
+	// Get parcel to extract latitude for hemisphere detection
 	var parcel models.Parcel
-	if err := s.DB.First(&parcel, parcelID).Error; err != nil {
+	if err := s.DB.Select("*, ST_AsGeoJSON(geo_json) as geo_json").First(&parcel, parcelID).Error; err != nil {
 		return fmt.Errorf("failed to fetch parcel: %w", err)
 	}
 	latitude := extractLatitudeFromGeometry(parcel.GeoJSON)
@@ -442,27 +511,27 @@ func extractLatitudeFromGeometry(geojson models.PostGISGeoJSON) float64 {
 
 // ClimateAnalysis holds climate estimates derived from location
 type ClimateAnalysis struct {
-	KoppenCode         string  // Köppen climate classification
-	KoppenName         string  // Human-readable name
+	KoppenCode string // Köppen climate classification
+	KoppenName string // Human-readable name
 
 	// Temperature estimates
-	EstAvgAnnualTemp   float64
-	EstAvgJanTemp      float64
-	EstAvgJulTemp      float64
-	EstFrostDays       int
-	EstHotDays         int
-	EstChillingHours   int
+	EstAvgAnnualTemp float64
+	EstAvgJanTemp    float64
+	EstAvgJulTemp    float64
+	EstFrostDays     int
+	EstHotDays       int
+	EstChillingHours int
 
 	// Precipitation estimates
-	EstAnnualRainfall  float64
-	EstDryMonths       int
+	EstAnnualRainfall float64
+	EstDryMonths      int
 
 	// Growing conditions
-	EstAnnualGDD       int
+	EstAnnualGDD int
 
 	// Dormancy
-	DormancyStart      int
-	DormancyEnd        int
+	DormancyStart int
+	DormancyEnd   int
 
 	// Adjustment factors
 	IrrigationFactor   float64
@@ -471,8 +540,8 @@ type ClimateAnalysis struct {
 	FrostRiskFactor    float64
 
 	// Suitability
-	OliveSuitability   float64
-	SuitabilityNotes   string
+	OliveSuitability float64
+	SuitabilityNotes string
 }
 
 // analyzeClimateFromLocation estimates climate characteristics from coordinates
@@ -502,8 +571,8 @@ func analyzeClimateFromLocation(loc LocationData) ClimateAnalysis {
 	if loc.DistanceToSea < CoastalDistanceKm {
 		// Coastal: smaller seasonal variation
 		climate.EstAvgAnnualTemp = baseTemp
-		climate.EstAvgJanTemp = baseTemp - 8.0  // Milder winter
-		climate.EstAvgJulTemp = baseTemp + 8.0  // Cooler summer
+		climate.EstAvgJanTemp = baseTemp - 8.0 // Milder winter
+		climate.EstAvgJulTemp = baseTemp + 8.0 // Cooler summer
 	} else {
 		// Continental: larger seasonal variation
 		continentalFactor := math.Min(loc.DistanceToSea/100.0, 1.5)
@@ -794,16 +863,16 @@ func getGlobalClimateZone(latitude float64) ClimateZone {
 
 // HistoricalClimateData represents aggregated historical climate data
 type HistoricalClimateData struct {
-	AvgTemp          float64
-	MinTemp          float64
-	MaxTemp          float64
-	AvgPrecipitation float64
+	AvgTemp            float64
+	MinTemp            float64
+	MaxTemp            float64
+	AvgPrecipitation   float64
 	TotalPrecipitation float64
-	FrostDays        int
-	HotDays          int
-	GDD              int
-	ChillingHours    int
-	ET0Sum           float64
+	FrostDays          int
+	HotDays            int
+	GDD                int
+	ChillingHours      int
+	ET0Sum             float64
 }
 
 // EnhanceProfileFromHistoricalData fetches 5 years of historical data to improve accuracy
@@ -912,12 +981,12 @@ func fetchHistoricalClimate(lat, lon float64, years int) (*HistoricalClimateData
 	// Parse response
 	var apiResp struct {
 		Daily struct {
-			Time           []string  `json:"time"`
-			TempMean       []float64 `json:"temperature_2m_mean"`
-			TempMin        []float64 `json:"temperature_2m_min"`
-			TempMax        []float64 `json:"temperature_2m_max"`
-			Precipitation  []float64 `json:"precipitation_sum"`
-			ET0            []float64 `json:"et0_fao_evapotranspiration"`
+			Time          []string  `json:"time"`
+			TempMean      []float64 `json:"temperature_2m_mean"`
+			TempMin       []float64 `json:"temperature_2m_min"`
+			TempMax       []float64 `json:"temperature_2m_max"`
+			Precipitation []float64 `json:"precipitation_sum"`
+			ET0           []float64 `json:"et0_fao_evapotranspiration"`
 		} `json:"daily"`
 	}
 

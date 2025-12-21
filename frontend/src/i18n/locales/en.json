@@ -160,7 +160,11 @@
     "generated": "Generated",
     "variety": "Variety",
     "variety_legend": "Variety Legend",
-    "tree_count": "trees"
+    "tree_count": "trees",
+    "vertex_editing_hint": "Drag vertices to reshape • Click midpoints to add • Right-click to remove",
+    "vertex_add_hint": "Click on edge midpoints to add vertices",
+    "vertex_remove_hint": "Right-click on a vertex to remove it",
+    "min_vertices_warning": "Cannot remove: minimum 3 vertices required"
   },
   "operations": {
     "title": "Operations Log",

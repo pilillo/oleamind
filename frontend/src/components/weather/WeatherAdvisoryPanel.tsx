@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { 
-  Cloud, 
-  Droplets, 
-  Bug, 
+import {
+  Cloud,
+  Droplets,
+  Bug,
   Leaf,
   AlertTriangle,
   CheckCircle,
@@ -75,7 +75,7 @@ const getPriorityIcon = (priority: string) => {
   }
 }
 
-export const WeatherAdvisoryPanel: React.FC<WeatherAdvisoryPanelProps> = ({ 
+export const WeatherAdvisoryPanel: React.FC<WeatherAdvisoryPanelProps> = ({
   parcelId,
   compact = false
 }) => {
@@ -120,7 +120,7 @@ export const WeatherAdvisoryPanel: React.FC<WeatherAdvisoryPanelProps> = ({
     return (
       <div className="bg-red-50 rounded-xl border border-red-200 p-4">
         <p className="text-sm text-red-600">{error}</p>
-        <button 
+        <button
           onClick={fetchAdvisory}
           className="mt-2 text-xs text-red-700 underline"
         >
@@ -135,17 +135,17 @@ export const WeatherAdvisoryPanel: React.FC<WeatherAdvisoryPanelProps> = ({
   // Sort advisories by priority
   const sortedAdvisories = [...(advisory.advisories || [])].sort((a, b) => {
     const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3, info: 4 }
-    return (priorityOrder[a.priority as keyof typeof priorityOrder] || 5) - 
-           (priorityOrder[b.priority as keyof typeof priorityOrder] || 5)
+    return (priorityOrder[a.priority as keyof typeof priorityOrder] || 5) -
+      (priorityOrder[b.priority as keyof typeof priorityOrder] || 5)
   })
 
   // Get urgent advisories (critical/high)
-  const urgentAdvisories = sortedAdvisories.filter(a => 
+  const urgentAdvisories = sortedAdvisories.filter(a =>
     a.priority === 'critical' || a.priority === 'high'
   )
 
-  const displayAdvisories = compact && !expanded 
-    ? urgentAdvisories.slice(0, 2) 
+  const displayAdvisories = compact && !expanded
+    ? urgentAdvisories.slice(0, 2)
     : sortedAdvisories
 
   return (
@@ -200,8 +200,8 @@ export const WeatherAdvisoryPanel: React.FC<WeatherAdvisoryPanelProps> = ({
           <Sparkles className="w-4 h-4 text-green-600" />
           <span className="text-gray-600">Best spray:</span>
           <span className="font-medium">
-            {advisory.best_spray_day >= 0 
-              ? `Day ${advisory.best_spray_day}` 
+            {advisory.best_spray_day >= 0
+              ? `Day ${advisory.best_spray_day}`
               : 'Not available'}
           </span>
         </div>
@@ -209,12 +209,12 @@ export const WeatherAdvisoryPanel: React.FC<WeatherAdvisoryPanelProps> = ({
           <Droplets className="w-4 h-4 text-blue-600" />
           <span className="text-gray-600">Irrigate:</span>
           <span className="font-medium">
-            {advisory.best_irrigate_day >= 0 
-              ? `Day ${advisory.best_irrigate_day}` 
+            {advisory.best_irrigate_day >= 0
+              ? `Day ${advisory.best_irrigate_day}`
               : 'Not needed'}
           </span>
         </div>
-        {advisory.rain_expected_days.length > 0 && (
+        {advisory.rain_expected_days && advisory.rain_expected_days.length > 0 && (
           <div className="flex items-center gap-1.5">
             <Cloud className="w-4 h-4 text-blue-600" />
             <span className="text-gray-600">Rain:</span>
@@ -235,7 +235,7 @@ export const WeatherAdvisoryPanel: React.FC<WeatherAdvisoryPanelProps> = ({
           </div>
         ) : (
           displayAdvisories.map((adv, idx) => (
-            <div 
+            <div
               key={idx}
               className={`rounded-lg border p-3 ${getPriorityColor(adv.priority)}`}
             >

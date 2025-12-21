@@ -160,7 +160,11 @@
     "generated": "Generato",
     "variety": "Varietà",
     "variety_legend": "Legenda Varietà",
-    "tree_count": "alberi"
+    "tree_count": "alberi",
+    "vertex_editing_hint": "Trascina i vertici per modificare • Clicca sui punti medi per aggiungere • Tasto destro per rimuovere",
+    "vertex_add_hint": "Clicca sui punti medi dei lati per aggiungere vertici",
+    "vertex_remove_hint": "Tasto destro su un vertice per rimuoverlo",
+    "min_vertices_warning": "Impossibile rimuovere: servono almeno 3 vertici"
   },
   "operations": {
     "title": "Registro Operazioni",

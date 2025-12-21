@@ -53,6 +53,7 @@ func main() {
 		&models.IrrigationEvent{},
 		&models.IrrigationRecommendation{},
 		&models.SoilProfile{},
+		&models.ClimateProfile{},
 		&models.IrrigationSystem{},
 		&models.PestRiskAssessment{},
 		&models.TreatmentThreshold{},

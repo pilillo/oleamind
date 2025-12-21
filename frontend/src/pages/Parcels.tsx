@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { MapContainer, TileLayer, GeoJSON, useMap, LayersControl, ImageOverlay, useMapEvents, LayerGroup, Marker } from 'react-leaflet'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { MapContainer, TileLayer, GeoJSON, useMap, LayersControl, ImageOverlay, useMapEvents, LayerGroup, Marker, Polygon } from 'react-leaflet'
 // @ts-ignore
 import { EditControl } from 'react-leaflet-draw'
 import L from 'leaflet'
@@ -45,9 +45,9 @@ const VARIETY_SYMBOLS = [
 // Generate initials from cultivar name
 const getVarietyInitials = (cultivarName: string): string => {
   if (!cultivarName) return ''
-  
+
   const words = cultivarName.trim().split(/\s+/)
-  
+
   if (words.length === 1) {
     // Single word: take first 2 characters
     return words[0].substring(0, 2).toUpperCase()
@@ -58,7 +58,7 @@ const getVarietyInitials = (cultivarName: string): string => {
     // Three or more words: handle special cases like "di", "de", etc.
     const skipWords = ['di', 'de', 'del', 'della', 'da', 'delle', 'dei']
     const significantWords = words.filter(w => !skipWords.includes(w.toLowerCase()))
-    
+
     if (significantWords.length >= 2) {
       // Use first letter of first word + first letter of last significant word
       return (significantWords[0][0] + significantWords[significantWords.length - 1][0]).toUpperCase()
@@ -77,7 +77,7 @@ const createVarietyIcon = (varietyIndex: number, cultivarName: string = '') => {
   const color = VARIETY_COLORS[varietyIndex % VARIETY_COLORS.length]
   const symbolFn = VARIETY_SYMBOLS[varietyIndex % VARIETY_SYMBOLS.length]
   const initials = getVarietyInitials(cultivarName)
-  
+
   // Create SVG with symbol and text label centered on top with semi-transparent background
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
@@ -97,7 +97,7 @@ const createVarietyIcon = (varietyIndex: number, cultivarName: string = '') => {
       ` : ''}
     </svg>
   `
-  
+
   return L.divIcon({
     html: svg,
     className: 'variety-marker',
@@ -121,7 +121,7 @@ function MapController({ bounds }: { bounds: L.LatLngBounds | null }) {
         if (rafIdRef.current !== null) {
           cancelAnimationFrame(rafIdRef.current)
         }
-        
+
         // Use requestAnimationFrame to batch DOM updates and reduce forced reflows
         rafIdRef.current = requestAnimationFrame(() => {
           map.fitBounds(bounds, {
@@ -133,7 +133,7 @@ function MapController({ bounds }: { bounds: L.LatLngBounds | null }) {
         })
       }
     }
-    
+
     return () => {
       if (rafIdRef.current !== null) {
         cancelAnimationFrame(rafIdRef.current)
@@ -219,8 +219,8 @@ function MapClickHandler({ onMapClick, enabled }: { onMapClick: (latlng: L.LatLn
 }
 
 // Component for draggable markers
-function DraggableMarker({ position, icon, opacity = 1, scale = 1, zIndex = 100, onDragEnd, onRemove }: { 
-  position: L.LatLng, 
+function DraggableMarker({ position, icon, opacity = 1, scale = 1, zIndex = 100, onDragEnd, onRemove }: {
+  position: L.LatLng,
   icon: L.Icon | L.DivIcon,
   opacity?: number,
   scale?: number,
@@ -282,7 +282,238 @@ function DraggableMarker({ position, icon, opacity = 1, scale = 1, zIndex = 100,
   )
 }
 
+// Component for editing polygon vertices using direct Leaflet manipulation (no re-renders during drag)
+function EditablePolygon({
+  geojson,
+  onGeometryChange,
+  color = '#22c55e',
+  onMinVerticesWarning
+}: {
+  geojson: any,
+  onGeometryChange: (newGeojson: any, areaHa: number) => void,
+  color?: string,
+  onMinVerticesWarning?: () => void
+}) {
+  const map = useMap()
+  const polygonRef = useRef<L.Polygon | null>(null)
+  const vertexMarkersRef = useRef<L.Marker[]>([])
+  const midpointMarkersRef = useRef<L.Marker[]>([])
+  const coordsRef = useRef<[number, number][]>([])
+
+  // Parse the geojson if it's a string
+  const parsedGeojson = useMemo(() =>
+    typeof geojson === 'string' ? JSON.parse(geojson) : geojson
+    , [geojson])
+
+  // Extract coordinates from polygon
+  const extractCoordinates = useCallback((geo: any): [number, number][] => {
+    if (geo.type === 'Polygon') {
+      return geo.coordinates[0].slice(0, -1)
+    } else if (geo.type === 'Feature' && geo.geometry.type === 'Polygon') {
+      return geo.geometry.coordinates[0].slice(0, -1)
+    }
+    return []
+  }, [])
+
+  // Helper to propagate geometry change
+  const propagateChange = useCallback(() => {
+    const closedCoords = [...coordsRef.current, coordsRef.current[0]]
+
+    let newGeojson: any
+    if (parsedGeojson.type === 'Polygon') {
+      newGeojson = { type: 'Polygon', coordinates: [closedCoords] }
+    } else if (parsedGeojson.type === 'Feature') {
+      newGeojson = {
+        ...parsedGeojson,
+        geometry: { type: 'Polygon', coordinates: [closedCoords] }
+      }
+    } else {
+      newGeojson = { type: 'Polygon', coordinates: [closedCoords] }
+    }
+
+    // Calculate area
+    const latlngs = coordsRef.current.map(c => L.latLng(c[1], c[0]))
+    let areaHa = 0
+    try {
+      // @ts-ignore
+      const areaSqMeters = L.GeometryUtil.geodesicArea(latlngs)
+      areaHa = areaSqMeters / 10000
+    } catch (err) {
+      console.error('Error calculating area:', err)
+    }
+
+    onGeometryChange(newGeojson, areaHa)
+  }, [parsedGeojson, onGeometryChange])
+
+  // Rebuild all markers (called after add/remove vertex)
+  const rebuildMarkers = useCallback(() => {
+    // Clear existing markers
+    vertexMarkersRef.current.forEach(m => m.remove())
+    midpointMarkersRef.current.forEach(m => m.remove())
+    vertexMarkersRef.current = []
+    midpointMarkersRef.current = []
+
+    const polygon = polygonRef.current
+    if (!polygon) return
+
+    const coords = coordsRef.current
+
+    // Update polygon
+    const latLngs = coords.map(c => L.latLng(c[1], c[0]))
+    polygon.setLatLngs(latLngs)
+
+    // Create vertex markers
+    const vertexMarkers: L.Marker[] = []
+    coords.forEach((coord, index) => {
+      const vertexIcon = L.divIcon({
+        html: `<div style="
+          width: 14px;
+          height: 14px;
+          background: white;
+          border: 3px solid ${color};
+          border-radius: 50%;
+          cursor: move;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        "></div>`,
+        className: 'vertex-marker',
+        iconSize: [14, 14],
+        iconAnchor: [7, 7]
+      })
+
+      const marker = L.marker([coord[1], coord[0]], {
+        icon: vertexIcon,
+        draggable: true
+      }).addTo(map)
+
+      // Handle drag
+      marker.on('drag', () => {
+        const newLatLng = marker.getLatLng()
+        coordsRef.current[index] = [newLatLng.lng, newLatLng.lat]
+        const newLatLngs = coordsRef.current.map(c => L.latLng(c[1], c[0]))
+        polygon.setLatLngs(newLatLngs)
+        // Update midpoints during drag
+        updateMidpointPositions()
+      })
+
+      // Handle drag end
+      marker.on('dragend', () => {
+        propagateChange()
+      })
+
+      // Right-click to remove vertex
+      marker.on('contextmenu', (e) => {
+        L.DomEvent.stopPropagation(e as L.LeafletEvent)
+        if (coordsRef.current.length <= 3) {
+          onMinVerticesWarning?.()
+          return
+        }
+        // Remove this vertex
+        coordsRef.current.splice(index, 1)
+        propagateChange()
+        rebuildMarkers()
+      })
+
+      vertexMarkers.push(marker)
+    })
+    vertexMarkersRef.current = vertexMarkers
+
+    // Create midpoint markers
+    createMidpointMarkers()
+  }, [map, color, propagateChange, onMinVerticesWarning])
+
+  // Update midpoint positions (called during vertex drag)
+  const updateMidpointPositions = useCallback(() => {
+    const coords = coordsRef.current
+    midpointMarkersRef.current.forEach((marker, i) => {
+      const nextIndex = (i + 1) % coords.length
+      const midLat = (coords[i][1] + coords[nextIndex][1]) / 2
+      const midLng = (coords[i][0] + coords[nextIndex][0]) / 2
+      marker.setLatLng([midLat, midLng])
+    })
+  }, [])
+
+  // Create midpoint markers
+  const createMidpointMarkers = useCallback(() => {
+    const coords = coordsRef.current
+    const midpointMarkers: L.Marker[] = []
+
+    coords.forEach((coord, index) => {
+      const nextIndex = (index + 1) % coords.length
+      const nextCoord = coords[nextIndex]
+
+      const midLat = (coord[1] + nextCoord[1]) / 2
+      const midLng = (coord[0] + nextCoord[0]) / 2
+
+      const midpointIcon = L.divIcon({
+        html: `<div style="
+          width: 10px;
+          height: 10px;
+          background: ${color};
+          opacity: 0.5;
+          border: 2px solid white;
+          border-radius: 50%;
+          cursor: pointer;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        "></div>`,
+        className: 'midpoint-marker',
+        iconSize: [10, 10],
+        iconAnchor: [5, 5]
+      })
+
+      const marker = L.marker([midLat, midLng], {
+        icon: midpointIcon,
+        draggable: false
+      }).addTo(map)
+
+      // Click to add vertex
+      marker.on('click', () => {
+        // Insert new vertex after current index
+        coordsRef.current.splice(index + 1, 0, [midLng, midLat])
+        propagateChange()
+        rebuildMarkers()
+      })
+
+      midpointMarkers.push(marker)
+    })
+
+    midpointMarkersRef.current = midpointMarkers
+  }, [map, color, propagateChange, rebuildMarkers])
+
+  // Create and manage Leaflet elements directly
+  useEffect(() => {
+    const coords = extractCoordinates(parsedGeojson)
+    coordsRef.current = coords
+
+    // Create polygon
+    const latLngs = coords.map(c => L.latLng(c[1], c[0]))
+    const polygon = L.polygon(latLngs, {
+      color: color,
+      fillColor: color,
+      fillOpacity: 0.2,
+      weight: 2,
+      dashArray: '5, 5'
+    }).addTo(map)
+    polygonRef.current = polygon
+
+    // Build markers
+    rebuildMarkers()
+
+    // Cleanup
+    return () => {
+      polygon.remove()
+      vertexMarkersRef.current.forEach(m => m.remove())
+      midpointMarkersRef.current.forEach(m => m.remove())
+    }
+  }, [map, parsedGeojson, extractCoordinates, color, rebuildMarkers])
+
+  // This component renders nothing - all rendering is done via Leaflet directly
+  return null
+}
+
+
+
 function Parcels() {
+
   const { t } = useTranslation()
   const { user } = useAuth()
   const [parcels, setParcels] = useState<any[]>([])
@@ -300,25 +531,27 @@ function Parcels() {
   const [climateLoading, setClimateLoading] = useState(false)
   const [showInfoPanel, setShowInfoPanel] = useState(true)
   const [activeTab, setActiveTab] = useState<'overview' | 'operations' | 'monitoring'>('operations')
-  
+
   // Right sidebar state
   const [sidebarWidth, setSidebarWidth] = useState(400)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
   const sidebarRef = useRef<HTMLDivElement>(null)
-  
+
   // Left sidebar state
   const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false)
-  
+
   // PDF export state
   const [isExportingPDF, setIsExportingPDF] = useState(false)
-  
+
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState('')
   const [editArea, setEditArea] = useState('')
   const [editTrees, setEditTrees] = useState('')
   // New state for varieties
   const [editVarieties, setEditVarieties] = useState<any[]>([])
+  // State for edited parcel geometry (for vertex editing)
+  const [editGeometry, setEditGeometry] = useState<any>(null)
   // Drawing mode state
   const [drawingVarietyIndex, setDrawingVarietyIndex] = useState<number | null>(null)
   // Deleting plants mode state
@@ -354,6 +587,8 @@ function Parcels() {
       setEditArea(selectedParcel.area || '')
       setEditTrees(selectedParcel.trees_count || '')
       setEditVarieties(selectedParcel.varieties || [])
+      // Initialize editGeometry with current parcel geometry
+      setEditGeometry(selectedParcel.geojson || null)
       setIsEditing(false)
       setDrawingVarietyIndex(null) // Reset drawing mode
       setDeletingPlantIndex(null) // Reset deleting mode
@@ -415,15 +650,16 @@ function Parcels() {
     setWeatherData(null)
     setClimateProfile(null)
 
-    // Automatically fetch NDVI data for this parcel
-    processSatellite(parcel.ID)
+    // Try to fetch cached satellite data first (GET)
+    // Only process new data (POST) if explicit save happens
+    fetchLatestSatellite(parcel.ID)
 
     // Fetch weather data for this parcel
     fetchWeather(parcel.ID)
 
     // Fetch climate profile for this parcel
     fetchClimateProfile(parcel.ID)
-    
+
     // Note: Irrigation and pest data now handled by WeatherAdvisoryPanel component
 
     if (parcel.geojson) {
@@ -518,7 +754,7 @@ function Parcels() {
 
       // Get all coordinates from the parcel polygon
       let allCoords: [number, number][] = []
-      
+
       const extractCoords = (geometry: any) => {
         if (geometry.type === 'Polygon') {
           return geometry.coordinates[0] // Outer ring
@@ -542,7 +778,7 @@ function Parcels() {
             const varGeojson = typeof variety.geojson === 'string'
               ? JSON.parse(variety.geojson)
               : variety.geojson
-            
+
             const treeCoords: [number, number][] = []
             const extractPoints = (geom: any) => {
               if (geom.type === 'Point') {
@@ -616,7 +852,7 @@ function Parcels() {
       const padding = 10
       const geoWidth = maxLng - minLng
       const geoHeight = maxLat - minLat
-      
+
       // Maintain aspect ratio
       const scaleX = (mapAreaWidth - padding * 2) / geoWidth
       const scaleY = (mapAreaHeight - padding * 2) / geoHeight
@@ -649,7 +885,7 @@ function Parcels() {
         polygonCoords = parcelGeojson.geometry.coordinates[0]
       } else if (parcelGeojson.type === 'FeatureCollection') {
         // Find the first polygon feature
-        const polyFeature = parcelGeojson.features.find((f: any) => 
+        const polyFeature = parcelGeojson.features.find((f: any) =>
           f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'
         )
         if (polyFeature && polyFeature.geometry.type === 'Polygon') {
@@ -660,11 +896,11 @@ function Parcels() {
       if (polygonCoords.length > 0) {
         // Build polygon path
         const points: { x: number, y: number }[] = polygonCoords.map(c => geoToPdf(c[0], c[1]))
-        
+
         // Draw polygon outline
         pdf.setLineWidth(2)
         pdf.setDrawColor(34, 85, 51)
-        
+
         // Draw polygon manually
         for (let i = 0; i < points.length; i++) {
           const current = points[i]
@@ -679,7 +915,7 @@ function Parcels() {
         const rgb = hexToRgb(color)
         const variety = selectedParcel.varieties[varietyIdx]
         const initials = getVarietyInitials(variety?.cultivar || '')
-        
+
         pdf.setFillColor(rgb.r, rgb.g, rgb.b)
         pdf.setDrawColor(255, 255, 255)
         pdf.setLineWidth(0.3)
@@ -691,7 +927,7 @@ function Parcels() {
           // Ensure fill color is set before drawing each symbol
           pdf.setFillColor(rgb.r, rgb.g, rgb.b)
           pdf.setDrawColor(255, 255, 255)
-          
+
           switch (varietyIdx % 6) {
             case 0: // Circle
               pdf.circle(pos.x, pos.y, symbolSize, 'FD')
@@ -737,9 +973,9 @@ function Parcels() {
             const bgHeight = symbolSize * 1.1
             pdf.setFillColor(51, 51, 51) // #333
             pdf.setGState(pdf.GState({ opacity: 0.65 }))
-            pdf.roundedRect(pos.x - bgWidth/2, pos.y - bgHeight/2, bgWidth, bgHeight, 0.3, 0.3, 'F')
+            pdf.roundedRect(pos.x - bgWidth / 2, pos.y - bgHeight / 2, bgWidth, bgHeight, 0.3, 0.3, 'F')
             pdf.setGState(pdf.GState({ opacity: 1.0 }))
-            
+
             // Draw initials text (increased from 2.5 to 6)
             pdf.setFontSize(6)
             pdf.setFont('helvetica', 'bold')
@@ -760,7 +996,7 @@ function Parcels() {
       // Add scale indicator on the map (bottom left corner)
       const scaleBarY = mapAreaY + mapAreaHeight - 10
       const scaleBarX = mapAreaX + 10
-      
+
       // Calculate scale using center latitude for better accuracy
       const centerLat = (minLat + maxLat) / 2
       // Meters per degree of longitude at this latitude
@@ -769,12 +1005,12 @@ function Parcels() {
       const realWorldWidthMeters = geoWidth * metersPerDegreeLng
       // Meters per mm on PDF
       const metersPerMm = realWorldWidthMeters / scaledWidth
-      
+
       // Choose a nice round number for scale bar
       const rawDistance = metersPerMm * 40 // approximate distance for 40mm bar
       let niceDistance: number
       let scaleBarWidth: number
-      
+
       // Round to nice values: 1, 2, 5, 10, 20, 50, 100, 200, 500, etc.
       const magnitude = Math.pow(10, Math.floor(Math.log10(rawDistance)))
       const normalized = rawDistance / magnitude
@@ -782,23 +1018,23 @@ function Parcels() {
       else if (normalized < 3.5) niceDistance = 2 * magnitude
       else if (normalized < 7.5) niceDistance = 5 * magnitude
       else niceDistance = 10 * magnitude
-      
+
       // Calculate actual bar width for the nice distance
       scaleBarWidth = niceDistance / metersPerMm
-      
+
       // Draw scale bar with improved visibility
       pdf.setDrawColor(0, 0, 0)
       pdf.setFillColor(255, 255, 255)
       pdf.setLineWidth(0.8)
-      
+
       // White background rectangle for visibility with border
       pdf.rect(scaleBarX - 3, scaleBarY - 8, scaleBarWidth + 6, 16, 'FD')
-      
+
       // Scale bar line (black and white segments for better visibility)
       pdf.setLineWidth(3)
       pdf.setDrawColor(0, 0, 0)
       pdf.line(scaleBarX, scaleBarY, scaleBarX + scaleBarWidth, scaleBarY)
-      
+
       // Alternating black and white segments
       const segments = 4
       const segmentWidth = scaleBarWidth / segments
@@ -810,13 +1046,13 @@ function Parcels() {
         }
         pdf.rect(scaleBarX + i * segmentWidth, scaleBarY - 1.5, segmentWidth, 3, 'F')
       }
-      
+
       // End caps
       pdf.setLineWidth(1.5)
       pdf.setDrawColor(0, 0, 0)
       pdf.line(scaleBarX, scaleBarY - 4, scaleBarX, scaleBarY + 4)
       pdf.line(scaleBarX + scaleBarWidth, scaleBarY - 4, scaleBarX + scaleBarWidth, scaleBarY + 4)
-      
+
       // Format distance text
       let distanceText: string
       if (niceDistance >= 1000) {
@@ -824,7 +1060,7 @@ function Parcels() {
       } else {
         distanceText = `${niceDistance} m`
       }
-      
+
       pdf.setFontSize(9)
       pdf.setFont('helvetica', 'bold')
       pdf.setTextColor(0, 0, 0)
@@ -858,10 +1094,10 @@ function Parcels() {
         const varieties = selectedParcel.varieties
         const varietyHeight = 14 // Height per variety entry
         const maxEntriesInSidebar = Math.floor((pageHeight - currentY - 10) / varietyHeight)
-        
+
         // Check if we need to create a separate legend page
         const needsSeparatePage = varieties.length > maxEntriesInSidebar
-        
+
         if (needsSeparatePage) {
           // Add reference on first page
           pdf.setFont('helvetica', 'bold')
@@ -869,41 +1105,41 @@ function Parcels() {
           pdf.setFont('helvetica', 'italic')
           pdf.setFontSize(8)
           pdf.text('(vedi pagina successiva)', legendX, currentY + 5)
-          
+
           // Create new page for legend
           pdf.addPage()
           pdf.setFontSize(16)
           pdf.setFont('helvetica', 'bold')
           pdf.text(`${t('parcels.variety_legend')} - ${selectedParcel.name}`, margin, margin + 5)
-          
+
           // Calculate columns layout
           const columnWidth = 90
           const columnsPerPage = Math.floor((pageWidth - margin * 2) / columnWidth)
           const entriesPerColumn = Math.floor((pageHeight - margin * 2 - 20) / varietyHeight)
-          
+
           let currentColumn = 0
           let currentRow = 0
           let currentPageY = margin + 15
-          
+
           pdf.setFontSize(9)
           pdf.setFont('helvetica', 'normal')
-          
+
           varieties.forEach((variety: any, idx: number) => {
             // Check if we need a new page
             if (currentRow >= entriesPerColumn) {
               currentRow = 0
               currentColumn++
-              
+
               if (currentColumn >= columnsPerPage) {
                 pdf.addPage()
                 currentColumn = 0
                 currentPageY = margin + 15
               }
             }
-            
+
             const columnX = margin + currentColumn * columnWidth
             const entryY = currentPageY + currentRow * varietyHeight
-            
+
             // Draw symbol with initials
             const color = VARIETY_COLORS[idx % VARIETY_COLORS.length]
             const rgb = hexToRgb(color)
@@ -966,9 +1202,9 @@ function Parcels() {
               const bgH = legendSymbolSize * 1.2
               pdf.setFillColor(51, 51, 51)
               pdf.setGState(pdf.GState({ opacity: 0.65 }))
-              pdf.roundedRect(symbolX - bgW/2, symbolY - bgH/2, bgW, bgH, 0.4, 0.4, 'F')
+              pdf.roundedRect(symbolX - bgW / 2, symbolY - bgH / 2, bgW, bgH, 0.4, 0.4, 'F')
               pdf.setGState(pdf.GState({ opacity: 1.0 }))
-              
+
               pdf.setFontSize(6)
               pdf.setFont('helvetica', 'bold')
               pdf.setTextColor(255, 255, 255)
@@ -1059,9 +1295,9 @@ function Parcels() {
               const bgH = legendSymbolSize * 1.2
               pdf.setFillColor(51, 51, 51)
               pdf.setGState(pdf.GState({ opacity: 0.65 }))
-              pdf.roundedRect(symbolX - bgW/2, symbolY - bgH/2, bgW, bgH, 0.4, 0.4, 'F')
+              pdf.roundedRect(symbolX - bgW / 2, symbolY - bgH / 2, bgW, bgH, 0.4, 0.4, 'F')
               pdf.setGState(pdf.GState({ opacity: 1.0 }))
-              
+
               pdf.setFontSize(6)
               pdf.setFont('helvetica', 'bold')
               pdf.setTextColor(255, 255, 255)
@@ -1191,6 +1427,12 @@ function Parcels() {
     }
   }
 
+  // Handle geometry change from EditablePolygon
+  const handleGeometryChange = useCallback((newGeojson: any, areaHa: number) => {
+    setEditGeometry(newGeojson)
+    setEditArea(areaHa.toFixed(2))
+  }, [])
+
   const handleUpdateParcel = async () => {
     if (!selectedParcel) return
 
@@ -1206,7 +1448,9 @@ function Parcels() {
       name: editName,
       area: parseFloat(editArea) || 0,
       trees_count: parseInt(editTrees) || 0,
-      varieties: varietiesToSubmit
+      varieties: varietiesToSubmit,
+      // Include edited geometry if it was modified
+      geojson: editGeometry || selectedParcel.geojson
     }
 
     try {
@@ -1223,6 +1467,14 @@ function Parcels() {
         setIsEditing(false)
         setDrawingVarietyIndex(null) // Reset drawing mode
         setDeletingPlantIndex(null) // Reset deleting mode
+        // If geometry changed, trigger satellite update
+        // We delay this slightly to let the UI settle and avoid rapid updates
+        if (editGeometry) {
+          setTimeout(() => {
+            processSatellite(updatedParcel.ID)
+            toast.loading("Updating satellite data...", { duration: 2000 })
+          }, 2000)
+        }
       } else {
         const errorText = await response.text()
         toast.error('Failed to update parcel: ' + errorText)
@@ -1253,6 +1505,56 @@ function Parcels() {
     }
   }
 
+  const fetchLatestSatellite = async (parcelId: number) => {
+    try {
+      // Use the new GET endpoint to fetch cached data
+      const response = await apiCall(`/satellite/${parcelId}/latest`, {
+        method: 'GET',
+      })
+
+      if (response.ok) {
+        const json = await response.json()
+
+        if (json.data) {
+          const rawData = json.data
+
+          // Parse image_bounds if it's a string
+          let imageBounds = rawData.image_bounds
+          if (typeof imageBounds === 'string') {
+            try {
+              imageBounds = JSON.parse(imageBounds)
+            } catch (e) {
+              console.error('Failed to parse image_bounds', e)
+            }
+          }
+
+          // Map model fields to UI expected fields (ProcessSatellite response structure)
+          // The model uses 'image_base64' for NDVI, but UI expects 'ndvi_image'
+          const formattedData = {
+            ...rawData,
+            parcelId,
+            ndvi_image: rawData.image_base64 || rawData.ndvi_image, // Fallback
+            image_bounds: imageBounds,
+            product_date: rawData.product_date,
+            // Ensure other indices are present (model keys match UI expectations for these usually)
+            ndwi_image: rawData.ndwi_image,
+            ndmi_image: rawData.ndmi_image,
+            evi_image: rawData.evi_image
+          }
+
+          setNdviData(formattedData)
+        }
+      } else if (response.status === 404) {
+        // No cache exists - this is expected for new parcels or cleared cache
+        // Trigger initial process/download
+        await processSatellite(parcelId)
+      }
+    } catch (err) {
+      console.error('Error fetching satellite data:', err)
+      // safe fail - no data available or error
+    }
+  }
+
   const processSatellite = async (parcelId: number) => {
     try {
       const response = await apiCall(`/parcels/${parcelId}/satellite`, {
@@ -1264,6 +1566,7 @@ function Parcels() {
         setNdviData({ ...data, parcelId })
         setSatelliteLastUpdated(Date.now())
         // Data is displayed in the panel automatically
+        toast.success("Satellite data updated")
       }
     } catch {
       // Silent failure - user will see no NDVI data in panel
@@ -1425,7 +1728,7 @@ function Parcels() {
     setEditVarieties(prevVarieties => {
       const newVarieties = [...prevVarieties]
       const currentVariety = newVarieties[varietyIndex]
-      
+
       if (!currentVariety.geojson) return newVarieties
 
       const existingGeojson = typeof currentVariety.geojson === 'string'
@@ -1444,7 +1747,7 @@ function Parcels() {
           // Keep all geometries except the Point at geometryIndex
           return !(idx === geometryIndex && geom.type === 'Point')
         })
-        
+
         // If no geometries left, set to null, otherwise update
         if (updatedGeometries.length === 0) {
           newVarieties[varietyIndex] = {
@@ -1501,7 +1804,7 @@ function Parcels() {
     setEditVarieties(prevVarieties => {
       const newVarieties = [...prevVarieties]
       const currentVariety = newVarieties[varietyIndex]
-      
+
       if (!currentVariety.geojson) return newVarieties
 
       const existingGeojson = typeof currentVariety.geojson === 'string'
@@ -1527,7 +1830,7 @@ function Parcels() {
           }
           return geom
         })
-        
+
         newVarieties[varietyIndex] = {
           ...currentVariety,
           geojson: {
@@ -1568,7 +1871,7 @@ function Parcels() {
       const newWidth = window.innerWidth - e.clientX
       // Clamp between 320px and 600px
       const clampedWidth = Math.min(600, Math.max(320, newWidth))
-      
+
       // Store pending width
       pendingWidth = clampedWidth
 
@@ -1621,10 +1924,9 @@ function Parcels() {
   return (
     <div className="h-full flex">
       {/* Left Sidebar - Parcel List */}
-      <div 
-        className={`bg-white border-r border-gray-200 flex flex-col h-full shadow-xl z-10 transition-all duration-300 ${
-          isLeftSidebarCollapsed ? 'w-14' : 'w-80'
-        }`}
+      <div
+        className={`bg-white border-r border-gray-200 flex flex-col h-full shadow-xl z-10 transition-all duration-300 ${isLeftSidebarCollapsed ? 'w-14' : 'w-80'
+          }`}
       >
         {/* Collapsed View */}
         {isLeftSidebarCollapsed ? (
@@ -1636,13 +1938,13 @@ function Parcels() {
             >
               <ChevronRight size={20} className="text-gray-600" />
             </button>
-            
+
             <div className="flex flex-col items-center gap-3">
               <div className="flex flex-col items-center">
                 <MapPin size={18} className="text-green-600 mb-1" />
                 <span className="text-xs font-bold text-gray-700">{parcels.length}</span>
               </div>
-              
+
               <button
                 onClick={() => {
                   setIsLeftSidebarCollapsed(false)
@@ -1653,29 +1955,27 @@ function Parcels() {
                 className={`p-2 rounded-lg transition-all ${isCreating
                   ? 'bg-gray-200 text-gray-700'
                   : 'bg-green-600 text-white hover:bg-green-700'
-                }`}
+                  }`}
                 title={isCreating ? 'Cancel' : 'Add Parcel'}
               >
                 {isCreating ? <X size={16} /> : <Plus size={16} />}
               </button>
             </div>
-            
+
             {/* Mini parcel indicators */}
             <div className="flex-1 overflow-y-auto mt-4 w-full px-2">
               {parcels.map((parcel: any) => (
                 <button
                   key={parcel.ID}
                   onClick={() => zoomToParcel(parcel)}
-                  className={`w-full p-2 mb-1 rounded-lg transition-all ${
-                    selectedParcel?.ID === parcel.ID
-                      ? 'bg-green-100 border-2 border-green-500'
-                      : 'hover:bg-gray-100 border-2 border-transparent'
-                  }`}
+                  className={`w-full p-2 mb-1 rounded-lg transition-all ${selectedParcel?.ID === parcel.ID
+                    ? 'bg-green-100 border-2 border-green-500'
+                    : 'hover:bg-gray-100 border-2 border-transparent'
+                    }`}
                   title={parcel.name}
                 >
-                  <div className={`w-2 h-2 rounded-full mx-auto ${
-                    selectedParcel?.ID === parcel.ID ? 'bg-green-500' : 'bg-gray-400'
-                  }`} />
+                  <div className={`w-2 h-2 rounded-full mx-auto ${selectedParcel?.ID === parcel.ID ? 'bg-green-500' : 'bg-gray-400'
+                    }`} />
                 </button>
               ))}
             </div>
@@ -1712,7 +2012,7 @@ function Parcels() {
                 className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${isCreating
                   ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                   : 'bg-green-600 text-white hover:bg-green-700 shadow-sm hover:shadow'
-                }`}
+                  }`}
               >
                 {isCreating ? (
                   <>
@@ -1746,7 +2046,7 @@ function Parcels() {
                   className={`group relative p-4 rounded-xl cursor-pointer transition-all duration-200 border ${selectedParcel?.ID === parcel.ID
                     ? 'bg-white border-green-500 shadow-md ring-1 ring-green-500/20'
                     : 'bg-white border-gray-200 hover:border-green-300 hover:shadow-sm'
-                  }`}
+                    }`}
                 >
                   <div className="flex justify-between items-start mb-2">
                     <h3 className={`font-semibold text-sm ${selectedParcel?.ID === parcel.ID ? 'text-green-700' : 'text-gray-700 group-hover:text-green-600'}`}>
@@ -1776,7 +2076,7 @@ function Parcels() {
       <div className="flex-grow relative">
         <MapContainer center={[41.9028, 12.4964]} zoom={6} maxZoom={20} style={{ height: '100%', width: '100%' }}>
           <LayersControl position="topright">
-            <LayersControl.BaseLayer checked name="OpenStreetMap">
+            <LayersControl.BaseLayer name="OpenStreetMap">
               <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a>'
@@ -1784,7 +2084,7 @@ function Parcels() {
                 maxNativeZoom={19}
               />
             </LayersControl.BaseLayer>
-            <LayersControl.BaseLayer name="Satellite with Labels">
+            <LayersControl.BaseLayer checked name="Satellite with Labels">
               <LayerGroup>
                 <TileLayer
                   url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
@@ -1827,18 +2127,29 @@ function Parcels() {
 
                 return (
                   <React.Fragment key={parcel.ID}>
-                    <GeoJSON
-                      data={geojson}
-                      style={() => ({
-                        color: selectedParcel?.ID === parcel.ID ? '#22c55e' : '#3b82f6',
-                        fillColor: hasNdviOverlay ? 'transparent' : (selectedParcel?.ID === parcel.ID ? '#86efac' : '#93c5fd'),
-                        fillOpacity: hasNdviOverlay ? 0 : 0.4,
-                        weight: 3
-                      })}
-                      eventHandlers={{
-                        click: () => zoomToParcel(parcel)
-                      }}
-                    />
+                    {/* Show EditablePolygon when editing the selected parcel */}
+                    {isEditing && selectedParcel?.ID === parcel.ID && editGeometry ? (
+                      <EditablePolygon
+                        geojson={editGeometry}
+                        onGeometryChange={handleGeometryChange}
+                        color="#22c55e"
+                        onMinVerticesWarning={() => toast.error(t('parcels.min_vertices_warning'))}
+                      />
+                    ) : (
+                      <GeoJSON
+                        data={geojson}
+                        style={() => ({
+                          color: selectedParcel?.ID === parcel.ID ? '#22c55e' : '#3b82f6',
+                          fillColor: hasNdviOverlay ? 'transparent' : (selectedParcel?.ID === parcel.ID ? '#86efac' : '#93c5fd'),
+                          fillOpacity: hasNdviOverlay ? 0 : 0.4,
+                          weight: 3
+                        })}
+                        eventHandlers={{
+                          click: () => zoomToParcel(parcel)
+                        }}
+                      />
+                    )}
+
 
                     {/* Render variety geometries for this parcel */}
                     {/* Display existing varieties from saved parcel (only when NOT editing) */}
@@ -1863,7 +2174,7 @@ function Parcels() {
 
                           // Create variety icon with unique symbol
                           const varietyIcon = createVarietyIcon(vIdx, variety.cultivar)
-                          
+
                           // Only use opacity for highlighting/dimming - no scaling to avoid zoom issues
                           const opacity = isDimmed ? 0.4 : 1
 
@@ -1872,7 +2183,7 @@ function Parcels() {
                               key={uniqueKey}
                               data={varietyGeojson}
                               pointToLayer={(_feature, latlng) => {
-                                const marker = L.marker(latlng, { 
+                                const marker = L.marker(latlng, {
                                   icon: varietyIcon,
                                   opacity: opacity
                                 })
@@ -1904,7 +2215,7 @@ function Parcels() {
                     {/* Render edit-mode variety geometries */}
                     {isEditing && selectedParcel?.ID === parcel.ID && editVarieties.map((variety: any, vIdx: number) => {
                       const color = VARIETY_COLORS[vIdx % VARIETY_COLORS.length]
-                      
+
                       // Determine selection state (similar to highlight state in normal view)
                       // Include both drawing mode and delete mode
                       const isSelected = drawingVarietyIndex === vIdx || deletingPlantIndex === vIdx
@@ -1929,13 +2240,13 @@ function Parcels() {
 
                         // Create variety icon with unique symbol
                         const varietyIcon = createVarietyIcon(vIdx, variety.cultivar)
-                        
+
                         // Only use opacity for selection/dimming - no scaling to avoid zoom issues
                         const opacity = isDimmed ? 0.4 : 1
 
                         // Extract points with their actual indices in GeometryCollection
                         const points: Array<{ latlng: L.LatLng, geometryIndex: number }> = []
-                        
+
                         if (varietyGeojson.type === 'Point') {
                           points.push({
                             latlng: L.latLng(varietyGeojson.coordinates[1], varietyGeojson.coordinates[0]),
@@ -1985,7 +2296,7 @@ function Parcels() {
                               }
                               return null
                             })}
-                            
+
                             {/* Render draggable markers for points */}
                             {points.map(({ latlng, geometryIndex }) => (
                               <DraggableMarker
@@ -2190,7 +2501,7 @@ function Parcels() {
 
       {/* Right Sidebar - Info Panel */}
       {selectedParcel && !isSidebarCollapsed && (
-        <div 
+        <div
           ref={sidebarRef}
           className="h-full bg-white border-l border-gray-200 flex flex-col relative transition-all duration-300"
           style={{ width: sidebarWidth, minWidth: 320, maxWidth: 600 }}
@@ -2200,7 +2511,7 @@ function Parcels() {
             onMouseDown={handleResizeStart}
             className={`absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-400 transition-colors z-10 ${isResizing ? 'bg-indigo-500' : 'bg-transparent hover:bg-indigo-300'}`}
           />
-          
+
           {/* Collapse Toggle Button */}
           <button
             onClick={toggleSidebar}
@@ -2215,6 +2526,10 @@ function Parcels() {
             <div className="flex justify-between items-start mb-4">
               {isEditing ? (
                 <div className="flex-grow mr-2 space-y-4">
+                  {/* Vertex editing hint */}
+                  <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-xs text-green-700">
+                    <span className="font-medium">✏️ {t('parcels.vertex_editing_hint')}</span>
+                  </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Parcel Name</label>
                     <input
@@ -2269,91 +2584,89 @@ function Parcels() {
                       {editVarieties.map((variety, idx) => {
                         const isSelected = drawingVarietyIndex === idx
                         return (
-                        <div 
-                          key={idx} 
-                          className={`bg-white p-3 rounded-lg border shadow-sm text-xs transition-colors ${
-                            isSelected 
-                              ? 'border-green-500 bg-green-50 shadow-md' 
+                          <div
+                            key={idx}
+                            className={`bg-white p-3 rounded-lg border shadow-sm text-xs transition-colors ${isSelected
+                              ? 'border-green-500 bg-green-50 shadow-md'
                               : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                        >
-                          <div className="flex justify-between items-center mb-3">
-                            <div className="flex items-center gap-2 flex-grow">
-                              <span className="font-mono font-medium text-gray-400 bg-gray-50 px-1.5 rounded">#{idx + 1}</span>
-                              <input
-                                placeholder="Variety name (e.g. Picual)"
-                                value={variety.cultivar}
-                                onChange={(e) => handleVarietyChange(idx, 'cultivar', e.target.value)}
-                                className="flex-grow border-b border-gray-200 focus:border-green-500 px-1 py-1 text-sm outline-none bg-transparent"
-                                autoFocus={drawingVarietyIndex === idx}
-                              />
+                              }`}
+                          >
+                            <div className="flex justify-between items-center mb-3">
+                              <div className="flex items-center gap-2 flex-grow">
+                                <span className="font-mono font-medium text-gray-400 bg-gray-50 px-1.5 rounded">#{idx + 1}</span>
+                                <input
+                                  placeholder="Variety name (e.g. Picual)"
+                                  value={variety.cultivar}
+                                  onChange={(e) => handleVarietyChange(idx, 'cultivar', e.target.value)}
+                                  className="flex-grow border-b border-gray-200 focus:border-green-500 px-1 py-1 text-sm outline-none bg-transparent"
+                                  autoFocus={drawingVarietyIndex === idx}
+                                />
+                              </div>
+                              <button
+                                onClick={() => handleRemoveVariety(idx)}
+                                className="text-gray-400 hover:text-red-500 ml-2 transition-colors"
+                                title="Remove variety"
+                              >
+                                <X size={14} />
+                              </button>
                             </div>
-                            <button
-                              onClick={() => handleRemoveVariety(idx)}
-                              className="text-gray-400 hover:text-red-500 ml-2 transition-colors"
-                              title="Remove variety"
-                            >
-                              <X size={14} />
-                            </button>
-                          </div>
 
-                          <div className="flex items-center justify-between bg-gray-50 p-2 rounded-md">
-                            {drawingVarietyIndex === idx ? (
-                              <div className="flex items-center gap-2 w-full justify-between animate-pulse">
-                                <span className="text-xs text-green-700 flex items-center gap-1 font-medium">
-                                  <MousePointerClick size={12} />
-                                  Click map to place trees
-                                </span>
-                                <button
-                                  onClick={() => setDrawingVarietyIndex(null)}
-                                  className="text-xs bg-green-500 text-white px-3 py-1.5 rounded-md hover:bg-green-600 font-medium shadow-sm"
-                                >
-                                  Done
-                                </button>
-                              </div>
-                            ) : deletingPlantIndex === idx ? (
-                              <div className="flex items-center gap-2 w-full justify-between animate-pulse">
-                                <span className="text-xs text-red-700 flex items-center gap-1 font-medium">
-                                  <Trash2 size={12} />
-                                  Click plants to delete
-                                </span>
-                                <button
-                                  onClick={() => setDeletingPlantIndex(null)}
-                                  className="text-xs bg-red-500 text-white px-3 py-1.5 rounded-md hover:bg-red-600 font-medium shadow-sm"
-                                >
-                                  Done
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2 w-full justify-between">
-                                <button
-                                  onClick={() => startDrawingForVariety(idx)}
-                                  className="text-xs bg-white text-indigo-600 px-3 py-1.5 rounded-md border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 font-medium flex items-center gap-1 transition-all shadow-sm"
-                                >
-                                  <MapPin size={12} /> Draw
-                                </button>
-                                {variety.geojson && (
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[10px] text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100 font-medium">
-                                      {getTreeCount(variety.geojson)} trees
-                                    </span>
-                                    <button
-                                      onClick={() => startDeletingPlants(idx)}
-                                      className={`text-xs p-1 rounded transition-colors ${
-                                        deletingPlantIndex === idx
+                            <div className="flex items-center justify-between bg-gray-50 p-2 rounded-md">
+                              {drawingVarietyIndex === idx ? (
+                                <div className="flex items-center gap-2 w-full justify-between animate-pulse">
+                                  <span className="text-xs text-green-700 flex items-center gap-1 font-medium">
+                                    <MousePointerClick size={12} />
+                                    Click map to place trees
+                                  </span>
+                                  <button
+                                    onClick={() => setDrawingVarietyIndex(null)}
+                                    className="text-xs bg-green-500 text-white px-3 py-1.5 rounded-md hover:bg-green-600 font-medium shadow-sm"
+                                  >
+                                    Done
+                                  </button>
+                                </div>
+                              ) : deletingPlantIndex === idx ? (
+                                <div className="flex items-center gap-2 w-full justify-between animate-pulse">
+                                  <span className="text-xs text-red-700 flex items-center gap-1 font-medium">
+                                    <Trash2 size={12} />
+                                    Click plants to delete
+                                  </span>
+                                  <button
+                                    onClick={() => setDeletingPlantIndex(null)}
+                                    className="text-xs bg-red-500 text-white px-3 py-1.5 rounded-md hover:bg-red-600 font-medium shadow-sm"
+                                  >
+                                    Done
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2 w-full justify-between">
+                                  <button
+                                    onClick={() => startDrawingForVariety(idx)}
+                                    className="text-xs bg-white text-indigo-600 px-3 py-1.5 rounded-md border border-gray-200 hover:border-indigo-300 hover:text-indigo-700 font-medium flex items-center gap-1 transition-all shadow-sm"
+                                  >
+                                    <MapPin size={12} /> Draw
+                                  </button>
+                                  {variety.geojson && (
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[10px] text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100 font-medium">
+                                        {getTreeCount(variety.geojson)} trees
+                                      </span>
+                                      <button
+                                        onClick={() => startDeletingPlants(idx)}
+                                        className={`text-xs p-1 rounded transition-colors ${deletingPlantIndex === idx
                                           ? 'text-red-600 bg-red-100'
                                           : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
-                                      }`}
-                                      title="Delete individual plants"
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                                          }`}
+                                        title="Delete individual plants"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
                         )
                       })}
                       {editVarieties.length === 0 && (
@@ -2500,19 +2813,18 @@ function Parcels() {
                         const symbolFn = VARIETY_SYMBOLS[i % VARIETY_SYMBOLS.length]
                         const isHighlighted = highlightedVarietyIndex === i
                         return (
-                          <div 
-                            key={i} 
-                            className={`p-3 rounded-lg border shadow-sm flex justify-between items-center cursor-pointer transition-all duration-200 ${
-                              isHighlighted 
-                                ? 'bg-gray-100 ring-2 ring-offset-1' 
-                                : 'bg-white border-gray-200 hover:border-gray-300'
-                            }`}
+                          <div
+                            key={i}
+                            className={`p-3 rounded-lg border shadow-sm flex justify-between items-center cursor-pointer transition-all duration-200 ${isHighlighted
+                              ? 'bg-gray-100 ring-2 ring-offset-1'
+                              : 'bg-white border-gray-200 hover:border-gray-300'
+                              }`}
                             style={isHighlighted ? { borderColor: color, outlineColor: color } : {}}
                             onClick={() => setHighlightedVarietyIndex(isHighlighted ? null : i)}
                           >
                             <div className="flex items-center gap-3">
                               {/* Variety symbol */}
-                              <div 
+                              <div
                                 className="w-6 h-6 flex-shrink-0"
                                 dangerouslySetInnerHTML={{
                                   __html: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">${symbolFn(color)}</svg>`
@@ -2558,9 +2870,9 @@ function Parcels() {
                       {climateProfile.climate_type && (
                         <span className="px-3 py-1.5 bg-white rounded-full text-sm font-medium text-blue-700 border border-blue-200 shadow-sm">
                           {climateProfile.climate_type === 'Csa' ? 'Hot-Summer Mediterranean' :
-                           climateProfile.climate_type === 'Csb' ? 'Warm-Summer Mediterranean' :
-                           climateProfile.climate_type === 'BSh' ? 'Hot Semi-Arid' :
-                           climateProfile.climate_type}
+                            climateProfile.climate_type === 'Csb' ? 'Warm-Summer Mediterranean' :
+                              climateProfile.climate_type === 'BSh' ? 'Hot Semi-Arid' :
+                                climateProfile.climate_type}
                         </span>
                       )}
                       {climateProfile.is_dormant ? (
@@ -2573,11 +2885,10 @@ function Parcels() {
                         </span>
                       )}
                       {climateProfile.olive_suitability_score && (
-                        <span className={`px-3 py-1.5 rounded-full text-sm font-medium border shadow-sm ${
-                          climateProfile.olive_suitability_score >= 80 ? 'bg-green-100 text-green-700 border-green-200' :
+                        <span className={`px-3 py-1.5 rounded-full text-sm font-medium border shadow-sm ${climateProfile.olive_suitability_score >= 80 ? 'bg-green-100 text-green-700 border-green-200' :
                           climateProfile.olive_suitability_score >= 60 ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
-                          'bg-orange-100 text-orange-700 border-orange-200'
-                        }`}>
+                            'bg-orange-100 text-orange-700 border-orange-200'
+                          }`}>
                           🫒 Suitability: {Math.round(climateProfile.olive_suitability_score)}%
                         </span>
                       )}
@@ -2719,8 +3030,8 @@ function Parcels() {
                 )}
 
                 {/* Climate Profile - Detailed Analysis */}
-                <ClimateProfileCard 
-                  profile={climateProfile} 
+                <ClimateProfileCard
+                  profile={climateProfile}
                   loading={climateLoading}
                   onRefresh={() => refreshClimateProfile(selectedParcel.ID)}
                 />

@@ -168,15 +168,17 @@ func UpdateParcel(c *gin.Context) {
 		}
 	}
 
-	// Update main fields
+	// Update main fields (including geometry if provided)
 	if err := initializers.DB.Model(&parcel).Updates(models.Parcel{
 		Name:       input.Name,
 		Area:       input.Area,
 		TreesCount: input.TreesCount,
+		GeoJSON:    input.GeoJSON,
 	}).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update parcel fields"})
 		return
 	}
+
 
 	// Update Varieties (Replace all)
 	// Replace handles adding new ones and removing deleted ones from the association
